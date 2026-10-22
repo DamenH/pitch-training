@@ -58,6 +58,8 @@ Load one with APP_BASE#/reference?example=ID (do not combine with midi, score or
 Supported stable IDs:
   c-major-scale: C4-C5 ascending/descending, 120 BPM
   a-natural-minor-scale: A3-A4 ascending/descending, 120 BPM
+  c-major-pentatonic-scale: C4-C5 ascending/descending (C D E G A), 120 BPM
+  a-minor-pentatonic-scale: A3-A4 ascending/descending (A C D E G), 120 BPM
   chromatic-scale: C4-C5 ascending/descending by semitones, 120 BPM
   octave-leaps: C, D and E octave leaps, 100 BPM
   ode-to-joy: Beethoven's opening theme, simple melody in C major, 108 BPM

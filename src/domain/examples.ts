@@ -58,6 +58,16 @@ export const PIANO_EXAMPLES: readonly PianoExample[] = [
     create: () => piece('A natural minor scale', scale(57, [0, 2, 3, 5, 7, 8, 10, 12])),
   },
   {
+    id: 'c-major-pentatonic-scale', title: 'C major pentatonic scale', category: 'Practice patterns',
+    description: 'C–D–E–G–A, C4–C5 ascending and descending. 120 BPM.', credit: 'Generated practice pattern',
+    create: () => piece('C major pentatonic scale', scale(60, [0, 2, 4, 7, 9, 12])),
+  },
+  {
+    id: 'a-minor-pentatonic-scale', title: 'A minor pentatonic scale', category: 'Practice patterns',
+    description: 'A–C–D–E–G, A3–A4 ascending and descending. 120 BPM.', credit: 'Generated practice pattern',
+    create: () => piece('A minor pentatonic scale', scale(57, [0, 3, 5, 7, 10, 12])),
+  },
+  {
     id: 'chromatic-scale', title: 'Chromatic scale', category: 'Practice patterns',
     description: 'Every semitone from C4 to C5 and back. 120 BPM.', credit: 'Generated practice pattern',
     create: () => piece('Chromatic scale', scale(60, Array.from({ length: 13 }, (_, i) => i))),

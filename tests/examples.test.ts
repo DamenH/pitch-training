@@ -16,6 +16,10 @@ describe('built-in MIDI examples', () => {
     expect(chromatic[24]).toBe(60);
     expect(chromatic.slice(1).every((note, i) => Math.abs(note - chromatic[i]!) === 1)).toBe(true);
   });
+  it('plays the five-note major and minor pentatonic scales up and down', () => {
+    expect(pitches('c-major-pentatonic-scale')).toEqual([60, 62, 64, 67, 69, 72, 69, 67, 64, 62, 60]);
+    expect(pitches('a-minor-pentatonic-scale')).toEqual([57, 60, 62, 64, 67, 69, 67, 64, 62, 60, 57]);
+  });
   it('uses exact octave leaps inside each C, D and E exercise', () => {
     const notes = pitches('octave-leaps');
     for (const start of [0, 5, 10]) {

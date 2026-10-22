@@ -140,7 +140,8 @@ async function verifyExamples(context, page, url) {
   await page.goto(`${url}#/reference`);
   await page.reload();
   const examples = [
-    'C major scale', 'A natural minor scale', 'Chromatic scale', 'Octave leaps',
+    'C major scale', 'A natural minor scale', 'C major pentatonic scale', 'A minor pentatonic scale',
+    'Chromatic scale', 'Octave leaps',
     'Ode to Joy — opening theme', 'Twinkle, Twinkle, Little Star', 'Frère Jacques — two-voice round',
   ];
   for (const title of examples) {
@@ -180,7 +181,7 @@ async function verifyExamples(context, page, url) {
   await page.goto(`${url}#/reference?example=missing`);
   await expect(page.getByRole('alert')).toContainText('Unknown built-in MIDI example');
   await context.setOffline(false);
-  console.log('  examples: all seven play offline, MIDI download/re-import, save/delete copies and stable example links passed');
+  console.log(`  examples: all ${examples.length} play offline, MIDI download/re-import, save/delete copies and stable example links passed`);
 }
 
 export async function verifyStorageFallback(browser, origin) {

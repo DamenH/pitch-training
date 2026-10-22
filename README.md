@@ -59,7 +59,8 @@ this device; **Copy piece link** embeds it in a URL fragment. **Export score**
 downloads a JSON backup. Links load a preview without automatically playing or saving.
 Playback highlights sounding notes in the selected octave of the reference piano.
 
-**Built-in MIDI examples** includes C major, A natural minor, chromatic scales,
+**Built-in MIDI examples** includes C major, A natural minor, C major pentatonic,
+A minor pentatonic and chromatic scales,
 octave leaps, and simple transcriptions of three public-domain melodies: Beethoven's
 [Ode to Joy](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=528), the traditional
 [Twinkle, Twinkle, Little Star](https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2236)
