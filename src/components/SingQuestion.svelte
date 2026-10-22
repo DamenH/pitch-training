@@ -5,9 +5,10 @@
   import { describeDeviation, signedCents } from '../lib/format';
   import { PitchCapture } from '../domain/pitchCapture';
   import { mic } from '../lib/mic.svelte';
+  import { playMidi } from '../lib/playback';
   import { settings } from '../lib/settings.svelte';
   import { shouldIgnoreShortcut } from '../lib/keys';
-  import { haptic } from '../lib/native';
+  import { haptic, onPress } from '../lib/native';
   import MicPanel from './MicPanel.svelte';
   import PitchMeter from './PitchMeter.svelte';
   import Icon from './Icon.svelte';
@@ -61,6 +62,10 @@
     checked = false;
     mic.resetTracking();
     void mic.start();
+  }
+
+  function playTarget() {
+    void playMidi(question.targetMidi);
   }
 
   // A new question must never be scored with a pitch sung for the previous one.
@@ -167,10 +172,14 @@
   {/if}
 
   <div class="action-bar">
-    {#if mode === 'test'}
-      <button type="button" class="btn primary" onclick={check} disabled={capture.phase !== 'locked' || checked}
+    {#if mode === 'test' && !checked}
+      <button type="button" class="btn primary" onclick={check} disabled={capture.phase !== 'locked'}
         title="Check answer (Enter)">
         Check answer
+      </button>
+    {:else}
+      <button type="button" class="btn" {...onPress(playTarget)} title="Play target note">
+        <Icon name="play" size={16} /> Play note
       </button>
     {/if}
     <button type="button" class="btn" class:primary={mode === 'practice'} onclick={onnext} title="Next note (N)">
