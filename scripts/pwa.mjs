@@ -26,7 +26,10 @@ self.addEventListener('install', (event) => {
     await cache.addAll(FILES.map((file) => new Request(new URL(file, self.registration.scope), { cache: 'reload' })));
   })());
 });
-// Wait for all open app windows to close before activating a new version.
+// Normally wait for all app windows to close; Settings can explicitly activate an update.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'ACTIVATE_UPDATE') event.waitUntil(self.skipWaiting());
+});
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     for (const key of await caches.keys()) {

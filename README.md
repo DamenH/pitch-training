@@ -134,6 +134,11 @@ Add to Home Screen** on iPhone/iPad. Installation requires HTTPS or localhost
 Offline caching is disabled in the Vite development server. Settings and history
 stay in local storage. Browser storage cleanup can remove offline files.
 Updates download in the background and activate after all app windows close.
+To apply an update immediately, use **Settings → Install & offline use → Update &
+reload** while online. This checks the server, waits for the full offline download,
+activates the new version even with other app windows open, and reloads the current
+window. Settings, history, saved pieces and other apps' caches are preserved. A failed
+download leaves the current offline version available.
 
 To verify offline behavior in Chromium: `npx playwright install chromium`, then
 `npm run test:pwa` (builds both variants and tests them under separate URL subpaths).

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { installApp, prepareOffline, pwa } from '../lib/pwa.svelte';
+  import { installApp, prepareOffline, pwa, updateAndReload } from '../lib/pwa.svelte';
 </script>
 
 <section class="card stack" aria-labelledby="install-h">
@@ -15,8 +15,15 @@
       <p>Offline saving requires the hosted app in a browser that supports service workers.</p>
     {/if}
     {#if !pwa.online}<p>You’re offline.</p>{/if}
-    {#if pwa.updateReady}<p>An update is ready. Close all app tabs and windows, then reopen to use it.</p>{/if}
+    {#if pwa.updateReady}<p>An update is ready. Use Update &amp; reload to apply it now.</p>{/if}
+    {#if pwa.refreshError}<p role="alert">{pwa.refreshError}</p>{/if}
   </div>
+  {#if pwa.status !== 'unavailable'}
+    <button type="button" class="btn" onclick={updateAndReload} disabled={pwa.refreshing || pwa.status === 'preparing'}>
+      {pwa.refreshing ? 'Updating…' : 'Update & reload'}
+    </button>
+    <p class="small muted">Checks for the latest version and reloads the app. Your settings, history and saved pieces stay on this device.</p>
+  {/if}
   {#if pwa.status === 'error'}
     <button type="button" class="btn" onclick={prepareOffline}>Try saving again</button>
   {/if}

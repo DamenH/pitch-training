@@ -7,6 +7,7 @@ import { verifyLibrary, verifyStorageFallback } from './verify-library.mjs';
 
 // Exercise real service workers under subpaths, as on shared hosting / GitHub Pages.
 let update = false;
+let failUpdateCheck = false;
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.mp3': 'audio/mpeg', '.svg': 'image/svg+xml' };
 const server = createServer(async (request, response) => {
@@ -14,6 +15,7 @@ const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
     const match = /^\/(standard|portable)\/(.*)$/.exec(pathname);
     if (!match) { response.writeHead(404).end(); return; }
+    if (failUpdateCheck && match[2] === 'sw.js') { response.writeHead(503).end(); return; }
     const root = resolve(match[1] === 'standard' ? 'dist' : 'dist-single');
     const path = resolve(root, match[2] || 'index.html');
     assert(path.startsWith(`${root}/`));
@@ -132,9 +134,41 @@ try {
     await context.setOffline(true);
     await reopened.reload();
     await expect(reopened.locator('meta[name="test-release"]')).toHaveAttribute('content', 'updated');
+    // Explicit update works without closing another window and preserves user data.
+    await reopened.getByRole('button', { name: 'Update & reload', exact: true }).click();
+    await expect(reopened.getByRole('alert')).toHaveText('Connect to the internet to update the app.');
+    await context.setOffline(false);
+    const stillOpen = await context.newPage();
+    await stillOpen.goto(`${url}#/settings`);
+    update = false; // Publish another release (the original shell), while both windows stay open.
+    await reopened.getByRole('button', { name: 'Update & reload', exact: true }).click();
+    await expect(reopened.locator('meta[name="test-release"]')).toHaveCount(0, { timeout: 20000 });
+    await expect(reopened.getByText('Ready offline', { exact: false })).toBeVisible();
+    await expect(reopened.getByLabel('Lowest octave')).toHaveValue('4');
+    assert.equal(await reopened.evaluate(() => localStorage.getItem('unrelated-app:sentinel')), 'keep me');
+    await expect(stillOpen.locator('meta[name="test-release"]')).toHaveCount(1);
+    await expect.poll(() => reopened.evaluate(() => caches.keys())).toContain('unrelated-app-cache');
+    await reopened.goto(`${url}#/reference`);
+    await expect(reopened.getByRole('button', { name: 'Imported MIDI chord', exact: true })).toBeVisible();
+    await reopened.goto(`${url}#/settings`);
+    failUpdateCheck = true;
+    await reopened.getByRole('button', { name: 'Update & reload', exact: true }).click();
+    await expect(reopened.getByRole('alert')).toBeVisible();
+    failUpdateCheck = false;
+    await expect(reopened.getByRole('button', { name: 'Update & reload', exact: true })).toBeEnabled();
+    // No new release: the same button still reloads, then remains usable offline.
+    await Promise.all([
+      reopened.waitForEvent('load'),
+      reopened.getByRole('button', { name: 'Update & reload', exact: true }).click(),
+    ]);
+    await context.setOffline(true);
+    await reopened.reload();
+    await expect(reopened.getByText('Ready offline', { exact: false })).toBeVisible();
+    await expect(reopened.getByLabel('Lowest octave')).toHaveValue('4');
+    await stillOpen.close();
     assert.deepEqual(errors, []);
     await context.close();
-    console.log(`${variant}: manifest, full offline reload, piano, settings, and deferred updates passed`);
+    console.log(`${variant}: manifest, offline reload, piano, settings, deferred/forced updates, data preservation and update failure recovery passed`);
   }
   await verifyStorageFallback(browser, origin);
 } finally {
