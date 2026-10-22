@@ -1,0 +1,11 @@
+Piano samples: Salamander Grand Piano V3 by Alexander Holm
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+
+Source recordings: Yamaha C5 grand piano, https://archive.org/details/SalamanderGrandPianoV3
+MP3 encodings as distributed with Tone.js (https://tonejs.github.io/audio/salamander/).
+
+Changes made for this app: only the samples C1–A7 (every minor third) are included, and each
+file was shortened to ~4.6 s by cutting at an MP3 frame boundary (no re-encoding; see
+scripts/trim-mp3.py). Playback applies per-sample tuning corrections so notes sound at exact
+12-tone equal temperament (A4 = 440 Hz).

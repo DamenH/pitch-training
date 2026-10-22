@@ -1,0 +1,116 @@
+Pitch Training - piano import and sharing protocol, version 1
+
+This file is relative to the app root: APP_BASE/agents.txt. On shared hosting,
+APP_BASE includes the app's existing random slug and trailing slash. Do not use
+the origin root as APP_BASE. Preserve the host/path of the app the user supplied.
+There is no upload endpoint, agent account, secret, or external music service.
+
+CAPABILITIES
+- Play simultaneous notes with the bundled sampled grand piano.
+- Import Standard MIDI Files (.mid/.midi), type 0 or 1, PPQ timing.
+- Merge all melodic tracks onto the same piano, keeping tempo-map timing,
+  duration, velocity, and CC64 sustain. Channel 10 percussion is skipped.
+- Program changes, pitch bend, other CCs, aftertouch, SysEx, and instrument
+  sounds other than piano are ignored. No physical MIDI-device connection yet.
+- Sustained notes decay naturally; recordings last approximately 4 seconds.
+  Pedal-held notes end at pedal-up, retrigger of the same note, or track end.
+- MIDI 0-127 can be played by transposing the nearest available recording;
+  the on-screen keyboard shows octaves 1-7.
+- Nothing auto-plays or auto-saves when a link opens. The user presses Play piece
+  or Save to library in Reference Library -> Piano pieces.
+
+TEXT FORMAT
+UTF-8 JSON (not JavaScript, not ABC notation), example:
+{"version":1,"title":"C major","notes":[{"midi":60,"time":0,"duration":1,"velocity":0.7},{"midi":64,"time":0,"duration":1,"velocity":0.7},{"midi":67,"time":0,"duration":1,"velocity":0.7}]}
+
+version: exactly 1.
+title: optional string, trimmed and limited to 160 characters (default Untitled).
+notes: array with 1-10,000 objects; notes can overlap and need not be sorted.
+Each note:
+  midi: integer 0-127; C4=60, A4=69 (440 Hz).
+  time: finite nonnegative number, absolute onset in seconds from the piece start.
+  duration: finite positive number in seconds.
+  velocity: optional finite number 0-1, default 0.8.
+time + duration must be <= 3600 seconds. Maximum 64 concurrent voices,
+including piano release tails (up to about 0.37 seconds).
+File/text import is limited to 2 MiB. Exported scores use the same JSON format.
+All imported tracks are flattened; exporting JSON does not preserve the original
+MIDI's non-note metadata or instrument assignments.
+
+LINK FORMAT
+APP_BASE#/reference?midi=PAYLOAD
+  PAYLOAD is unpadded URL-safe base64 of the ORIGINAL BINARY MIDI FILE BYTES.
+  Do not encode a file path, JSON, hexadecimal string, or data: URL here.
+APP_BASE#/reference?score=PAYLOAD
+  PAYLOAD is unpadded URL-safe base64 of UTF-8 bytes of the version-1 JSON above.
+Use exactly one of midi or score. Base64url replaces + with -, / with _, and
+removes trailing =. No compression. Maximum payload is 64,000 characters;
+shorter links are preferable because messaging clients may impose lower limits.
+For larger pieces, share the .mid or .json file for import instead.
+The fragment is not sent with the HTTP request, but anyone given the complete
+link can decode the piece. Generated in-app links use normalized score JSON.
+
+BUILT-IN MIDI EXAMPLES
+These examples are bundled and available offline without a saved-library entry.
+Load one with APP_BASE#/reference?example=ID (do not combine with midi or score).
+Supported stable IDs:
+  c-major-scale: C4-C5 ascending/descending, 120 BPM
+  a-natural-minor-scale: A3-A4 ascending/descending, 120 BPM
+  chromatic-scale: C4-C5 ascending/descending by semitones, 120 BPM
+  octave-leaps: C, D and E octave leaps, 100 BPM
+  ode-to-joy: Beethoven's opening theme, simple melody in C major, 108 BPM
+  twinkle-twinkle: traditional melody in C major, 108 BPM
+  frere-jacques-round: traditional two-voice round, 120 BPM
+The public-domain melodies have independent simple transcriptions made for this
+app; no third-party MIDI performances or modern piano arrangements are bundled.
+Attribution and reference links are shown in the example browser and README.
+The user can save a copy, generate an embedded score link, or Download MIDI.
+Removing a saved copy does not remove its built-in example. Download MIDI works
+for any current piece, not only built-ins; it exports notes on piano channels
+at 480 PPQ / 120 BPM, with UTF-8 title text and MIDI-quantized timing/velocity.
+Overlapping instances of the same pitch use separate melodic channels (maximum
+15 simultaneous instances of one pitch); larger unisons can be exported as JSON.
+
+PYTHON ENCODER (standard library)
+import base64
+import pathlib
+
+def midi_link(app_base, filename):
+    data = pathlib.Path(filename).read_bytes()
+    payload = base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+    if len(payload) > 64000:
+        raise ValueError("Too large for a link; share the file instead")
+    return app_base.rstrip("/") + "/#/reference?midi=" + payload
+
+# app_base is the user's existing app URL, WITHOUT its old #fragment.
+# print(midi_link(app_base, "piece.mid"))
+
+JAVASCRIPT ENCODER
+function base64url(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+// const bytes = new Uint8Array(await file.arrayBuffer());
+// const payload = base64url(bytes);
+// if (payload.length > 64000) throw new Error('Share the file instead');
+// const url = new URL(appBase);
+// url.hash = '/reference?midi=' + payload;
+// For JSON: base64url(new TextEncoder().encode(JSON.stringify(score))) and ?score=.
+
+STORAGE
+Saved pieces use an IndexedDB database named for Pitch Training and the app's
+URL directory. localStorage is a fallback when IndexedDB is unavailable.
+Settings/history/reference sequences also use path-scoped, prefixed keys;
+legacy Pitch Training data is copied once without deleting the old keys.
+Saves report storage failures. Export files for durable backups. The library
+holds up to 100 pieces. A different app path gets its own library namespace.
+Path scoping prevents accidental collisions; it is NOT a security boundary:
+same-origin apps can access each other's data, share quota, and may lose data
+when the user clears that origin. Storage Buckets can manage eviction separately
+on supported browsers, but do not add a same-origin security boundary.
+No localStorage.clear(), origin-wide database deletion, or origin-wide cache
+cleanup is performed. Saved pieces and all piano sounds can work offline after
+the app's Settings reports Ready offline. The user's browser/device owns storage.

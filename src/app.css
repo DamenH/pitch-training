@@ -1,0 +1,384 @@
+:root {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-2: #efede7;
+  --border: #d9d6cd;
+  --text: #1d1e20;
+  --text-muted: #5b5d63;
+  --accent: #2f5d50;
+  --accent-text: #ffffff;
+  --accent-soft: #dfeae5;
+  --good: #1f6b3a;
+  --good-soft: #dcefe2;
+  --bad: #a3322b;
+  --bad-soft: #f7e0dd;
+  --warn: #8a5a00;
+  --warn-soft: #f6ead0;
+  --focus: #1b64d6;
+  --key-white: #ffffff;
+  --key-black: #2a2b2e;
+  --key-black-text: #f2f2f2;
+  /* Selected black key: lighter than the accent so it stands apart from unselected black keys. */
+  --key-black-selected: #6fb3a0;
+  --key-black-selected-text: #0f1a16;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.05);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 16px;
+  --header-height: 52px;
+  --nav-height: 64px;
+  --rail-width: 76px;
+  --tap: 48px;
+  --content-max: 960px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #16171a;
+    --surface: #1f2024;
+    --surface-2: #2a2b30;
+    --border: #3a3c42;
+    --text: #ecebe7;
+    --text-muted: #a5a7ad;
+    --accent: #7cc4ad;
+    --accent-text: #0f1a16;
+    --accent-soft: #23352f;
+    --good: #7fd29a;
+    --good-soft: #1d3324;
+    --bad: #f0928a;
+    --bad-soft: #3d2220;
+    --warn: #e7bd6a;
+    --warn-soft: #3a2f18;
+    --focus: #8ab4ff;
+    --key-white: #e9e8e4;
+    --key-black: #0d0d0f;
+    --key-black-text: #e6e6e6;
+    --key-black-selected: #7cc4ad;
+    --key-black-selected-text: #0f1a16;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Keep scrolled-to and focused content clear of the sticky header, tab bar and action bar. */
+html {
+  scroll-padding-top: calc(var(--header-height) + var(--safe-top));
+  scroll-padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 76px);
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  html {
+    scroll-padding: 0;
+  }
+}
+
+@media (min-width: 900px) and (min-height: 501px) {
+  html {
+    scroll-padding-bottom: 0;
+  }
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: 1.35rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+}
+
+p {
+  margin: 0 0 0.75em;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  min-height: var(--tap);
+  padding: 0 1.1em;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text);
+  user-select: none;
+}
+
+/* Hover styles only where hover exists; on touch screens they stick after a tap. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+}
+
+.btn:disabled {
+  opacity: 0.5;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+@media (hover: hover) {
+  .btn.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    background: var(--accent);
+  }
+}
+
+.btn.primary:active:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.btn:not(.primary):active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn.danger {
+  color: var(--bad);
+  border-color: currentColor;
+}
+
+.btn.small {
+  min-height: var(--tap);
+  padding: 0 0.8em;
+  font-size: 0.9rem;
+}
+
+@media (pointer: fine) {
+  .btn.small {
+    min-height: 36px;
+  }
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  box-shadow: var(--shadow);
+}
+
+/*
+ * Primary exercise actions. On phones they stay pinned just above the tab bar, in the
+ * thumb zone, so Submit / Next never scroll out of reach; wider layouts keep them in flow.
+ */
+.action-bar {
+  position: sticky;
+  bottom: calc(var(--nav-height) + var(--safe-bottom));
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 12px 0 8px;
+  margin-block: -12px -8px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 12px);
+}
+
+.action-bar .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  padding-inline: 0.75em;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .action-bar {
+    position: static;
+    padding: 0;
+    margin: 0;
+    background: none;
+  }
+}
+
+@media (min-width: 900px) and (min-height: 501px) {
+  .action-bar {
+    position: static;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding: 0;
+    margin: 0;
+    background: none;
+  }
+  .action-bar .btn {
+    flex: 1 1 140px;
+    max-width: 320px;
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 0.875rem;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.notice {
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.notice.good {
+  background: var(--good-soft);
+  border-color: var(--good);
+}
+
+.notice.bad {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+}
+
+.notice.warn {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+}
+
+/* Keyboard shortcut hints only make sense with a physical keyboard. */
+.kbd-hint {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kbd-hint {
+    display: block;
+  }
+}
+
+kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
