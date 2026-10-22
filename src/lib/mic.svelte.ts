@@ -2,7 +2,7 @@
 // Raw frames feed a StablePitchTracker; the UI sees a throttled LiveState.
 
 import { MicError, PitchInput, type MicErrorCode } from '../audio/microphone';
-import { STABLE_RETENTION_MS, StablePitchTracker, type LatestStableResult, type LiveState } from '../domain/pitch';
+import { StablePitchTracker, type LiveState } from '../domain/pitch';
 
 export type MicStatus = 'idle' | 'starting' | 'running' | 'error';
 
@@ -63,10 +63,6 @@ class MicController {
   resetTracking(): void {
     this.tracker.reset();
     this.live = EMPTY;
-  }
-
-  latestStable(maxAgeMs = STABLE_RETENTION_MS): LatestStableResult {
-    return this.tracker.latestStable(performance.now(), maxAgeMs);
   }
 
   private fail(err: MicError): void {

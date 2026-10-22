@@ -3,7 +3,7 @@
   import { evaluateSing, type Question, type SingResult } from '../domain/exercise';
   import { noteName, pitchClassName, spokenNoteName, spokenPitchClassName } from '../domain/music';
   import { describeDeviation, signedCents } from '../lib/format';
-  import { STABLE_RETENTION_MS } from '../domain/pitch';
+  import { PitchCapture } from '../domain/pitchCapture';
   import { mic } from '../lib/mic.svelte';
   import { settings } from '../lib/settings.svelte';
   import MicPanel from './MicPanel.svelte';
@@ -34,17 +34,35 @@
 
   interface Attempt {
     n: number;
-    result: SingResult;
+    result: Exclude<SingResult, { outcome: 'no-detection' }>;
   }
   let attempts = $state<Attempt[]>([]);
   let feedback: HTMLElement | undefined = $state();
-  const latest = $derived(attempts[0]?.result ?? null);
+  let checked = $state(false);
+  const latest = $derived(checked ? attempts[0]?.result ?? null : null);
+  const recorder = new PitchCapture();
+  let capture = $state(recorder.state);
+
+  $effect(() => {
+    if (mode !== 'test') return;
+    if (mic.status === 'running') capture = recorder.push(mic.live);
+    else if (recorder.state.phase !== 'locked') capture = recorder.reset(performance.now());
+  });
+
+  function rerecord() {
+    capture = recorder.reset(performance.now());
+    checked = false;
+    mic.resetTracking();
+    void mic.start();
+  }
 
   // A new question must never be scored with a pitch sung for the previous one.
   mic.resetTracking();
 
   // Test mode reveals only whether a steady voice is present, never what pitch it is.
   const voiceStatus = $derived.by(() => {
+    if (capture.phase === 'locked') return 'Note locked';
+    if (capture.phase === 'holding') return 'Keep holding…';
     if (mic.status !== 'running') return '';
     switch (mic.live.status) {
       case 'stable':
@@ -61,9 +79,10 @@
   });
 
   function check() {
-    const latestStable = mic.latestStable(STABLE_RETENTION_MS);
-    const submitted = latestStable.kind === 'ok' ? { kind: 'ok' as const, pitch: latestStable.pitch } : latestStable;
-    const result = evaluateSing(question, submitted, s.toleranceCents);
+    if (!capture.pitch || checked) return;
+    const result = evaluateSing(question, { kind: 'ok', pitch: capture.pitch }, s.toleranceCents);
+    if (result.outcome === 'no-detection') return;
+    checked = true;
     attempts = [{ n: attempts.length + 1, result }, ...attempts].slice(0, 6);
     onresult?.(result, Date.now() - question.createdAt);
     void tick().then(() => feedback?.scrollIntoView({ block: 'nearest' }));
@@ -72,7 +91,7 @@
   function onkeydown(e: KeyboardEvent) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLButtonElement) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-    if (e.key === 'Enter' && mode === 'test' && mic.status === 'running') {
+    if (e.key === 'Enter' && mode === 'test') {
       e.preventDefault();
       check();
     } else if (e.key === 'n' || e.key === 'N') {
@@ -95,50 +114,37 @@
   <div class="card stack mic-card">
     <MicPanel />
 
-    {#if mic.status === 'running'}
-      {#if mode === 'practice'}
-        <PitchMeter
-          live={mic.live}
-          targetMidi={question.targetMidi}
-          policy={question.scoringPolicy}
-          toleranceCents={s.toleranceCents}
-          spelling={s.spelling}
-        />
+    {#if mode === 'practice' && mic.status === 'running'}
+      <PitchMeter live={mic.live} targetMidi={question.targetMidi} policy={question.scoringPolicy}
+        toleranceCents={s.toleranceCents} spelling={s.spelling} />
+    {:else if mode === 'test'}
+      {#if mic.status === 'running' || capture.phase === 'locked'}
+        <p class="voice" class:steady={capture.phase === 'locked'} role="status">{voiceStatus}</p>
+        <progress aria-label="Note capture progress" value={capture.progress} max="1"></progress>
+      {/if}
+      {#if capture.phase === 'locked'}
+        <button type="button" class="btn" onclick={rerecord}>Re-record</button>
       {:else}
-        <p class="voice" class:steady={mic.live.status === 'stable'}>
-          <Icon name={mic.live.status === 'stable' ? 'dot' : 'mic'} size={18} />
-          {voiceStatus}
-        </p>
+        <p class="small muted capture-help">Sing a note and hold it steady to lock your answer.</p>
       {/if}
     {/if}
   </div>
 
   {#if mode === 'test'}
-    <div aria-live="polite" class="stack" bind:this={feedback}>
+    <div aria-live="polite" class="stack feedback" bind:this={feedback}>
       {#if latest}
-        {#if latest.outcome === 'no-detection'}
-          <div class="notice warn">
-            <p class="verdict"><span aria-hidden="true">?</span> No recent steady note</p>
-            <p class="detail">
-              {latest.reason === 'stale'
-                ? 'Your last steady note was too long ago.'
-                : 'Hold a note a little longer, then check.'}
-            </p>
-          </div>
-        {:else}
-          <div class="notice" class:good={latest.outcome === 'correct'} class:bad={latest.outcome === 'incorrect'}>
-            <p class="verdict">
-              <span aria-hidden="true">{latest.outcome === 'correct' ? '✓' : '✗'}</span>
-              {latest.outcome === 'correct' ? 'Match' : 'No match'}
-            </p>
-            <p class="detail">
-              You sang <strong>{noteName(latest.comparison.detectedMidi, s.spelling)}</strong>
-              <span class="muted">({latest.sungFrequency.toFixed(1)} Hz)</span>:
-              {describeDeviation(latest.comparison.cents)}
-              {noteName(latest.comparison.referenceMidi, s.spelling)}.
-            </p>
-          </div>
-        {/if}
+        <div class="notice" class:good={latest.outcome === 'correct'} class:bad={latest.outcome === 'incorrect'}>
+          <p class="verdict">
+            <span aria-hidden="true">{latest.outcome === 'correct' ? '✓' : '✗'}</span>
+            {latest.outcome === 'correct' ? 'Match' : 'No match'}
+          </p>
+          <p class="detail">
+            You sang <strong>{noteName(latest.comparison.detectedMidi, s.spelling)}</strong>
+            <span class="muted">({latest.sungFrequency.toFixed(1)} Hz)</span>:
+            {describeDeviation(latest.comparison.cents)}
+            {noteName(latest.comparison.referenceMidi, s.spelling)}.
+          </p>
+        </div>
       {/if}
     </div>
     {#if attempts.length > 1}
@@ -147,13 +153,9 @@
         <ol reversed>
           {#each attempts.slice(1) as a (a.n)}
             <li>
-              {#if a.result.outcome === 'no-detection'}
-                No steady note
-              {:else}
-                {a.result.outcome === 'correct' ? '✓' : '✗'}
-                {noteName(a.result.comparison.detectedMidi, s.spelling)}
-                ({signedCents(a.result.comparison.cents)})
-              {/if}
+              {a.result.outcome === 'correct' ? '✓' : '✗'}
+              {noteName(a.result.comparison.detectedMidi, s.spelling)}
+              ({signedCents(a.result.comparison.cents)})
             </li>
           {/each}
         </ol>
@@ -163,7 +165,7 @@
 
   <div class="action-bar">
     {#if mode === 'test'}
-      <button type="button" class="btn primary" onclick={check} disabled={mic.status !== 'running'}>
+      <button type="button" class="btn primary" onclick={check} disabled={capture.phase !== 'locked' || checked}>
         Check answer
       </button>
     {/if}
@@ -228,35 +230,11 @@
     font-size: 0.9rem;
   }
 
-  /* Phone on its side: target, actions and feedback on the left; microphone and meter on the right. */
+  progress { width: 100%; height: 8px; accent-color: var(--accent); }
+  .capture-help { margin: 0; }
+  .feedback:empty { display: none; }
   @media (orientation: landscape) and (max-height: 500px) {
-    .sing {
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-      grid-template-rows: repeat(5, auto) 1fr;
-      align-items: start;
-      gap: 12px var(--gap);
-    }
-    .sing > * {
-      grid-column: 1;
-    }
-    .sing > .mic-card {
-      grid-column: 2;
-      grid-row: 1 / -1;
-    }
-    /* Actions sit right under the target so they never fall below the fold as feedback grows. */
-    .sing > .action-bar {
-      grid-row: 2;
-    }
-    .target {
-      flex-direction: row;
-      justify-content: center;
-      align-items: baseline;
-      gap: 12px;
-      padding-block: 8px;
-    }
-    .note {
-      font-size: 3.5rem;
-    }
+    .target { flex-direction: row; justify-content: center; align-items: baseline; gap: 12px; padding-block: 8px; }
+    .note { font-size: 3rem; }
   }
 </style>
