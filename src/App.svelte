@@ -1,5 +1,6 @@
 <script lang="ts">
   import { href, router, type Route } from './lib/router.svelte';
+  import ImportPage from './pages/ImportPage.svelte';
   import ReferencePage from './pages/ReferencePage.svelte';
   import ExercisePage from './pages/ExercisePage.svelte';
   import SettingsPage from './pages/SettingsPage.svelte';
@@ -18,7 +19,7 @@
     { route: 'identify', label: 'Identify Notes', short: 'Identify', icon: 'ear' },
     { route: 'sing-practice', label: 'Sing — Practice', short: 'Sing', icon: 'mic' },
     { route: 'sing-test', label: 'Sing — Test', short: 'Sing test', icon: 'check' },
-    { route: 'mixed', label: 'Mixed Practice', short: 'Mixed', icon: 'shuffle' },
+    { route: 'import', label: 'Import pieces', short: 'Import', icon: 'plus' },
   ];
 
   const TITLES: Record<Route, string> = {
@@ -26,14 +27,14 @@
     identify: 'Identify Notes',
     'sing-practice': 'Sing Notes — Practice',
     'sing-test': 'Sing Notes — Test',
-    mixed: 'Mixed Practice',
+    import: 'Import pieces',
     settings: 'Settings',
     history: 'History',
   };
 
   let main: HTMLElement | undefined = $state();
 
-  const isExercise = $derived(NAV.some((item) => item.route === router.current && item.route !== 'reference'));
+  const isExercise = $derived(['identify', 'sing-practice', 'sing-test'].includes(router.current));
 
   $effect(() => {
     document.title = `${TITLES[router.current]} · Pitch Training`;
@@ -95,13 +96,13 @@
   {#if router.current === 'reference'}
     <ReferencePage />
   {:else if router.current === 'identify'}
-    <ExercisePage kinds={['identify']} />
+    <ExercisePage kind="identify" />
   {:else if router.current === 'sing-practice'}
-    <ExercisePage kinds={['sing-practice']} />
+    <ExercisePage kind="sing-practice" />
   {:else if router.current === 'sing-test'}
-    <ExercisePage kinds={['sing-test']} />
-  {:else if router.current === 'mixed'}
-    <ExercisePage kinds={['identify', 'sing-test']} mixed />
+    <ExercisePage kind="sing-test" />
+  {:else if router.current === 'import'}
+    <ImportPage />
   {:else if router.current === 'settings'}
     <SettingsPage />
   {:else}

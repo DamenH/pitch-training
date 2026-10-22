@@ -1,8 +1,8 @@
 // Hash-based routing: works on GitHub Pages without server-side rewrites.
 
-export type Route = 'reference' | 'identify' | 'sing-practice' | 'sing-test' | 'mixed' | 'settings' | 'history';
+export type Route = 'reference' | 'identify' | 'sing-practice' | 'sing-test' | 'import' | 'settings' | 'history';
 
-export const ROUTES: readonly Route[] = ['reference', 'identify', 'sing-practice', 'sing-test', 'mixed', 'settings', 'history'];
+export const ROUTES: readonly Route[] = ['reference', 'identify', 'sing-practice', 'sing-test', 'import', 'settings', 'history'];
 export const DEFAULT_ROUTE: Route = 'identify';
 
 function parse(hash: string): Route {

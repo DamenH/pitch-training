@@ -179,32 +179,8 @@
     margin: 0;
   }
 
-  /* Phone on its side: controls and feedback on the left, the piano filling the right. */
   @media (orientation: landscape) and (max-height: 500px) {
-    .prompt {
-      padding-block: 8px;
-    }
-    .identify {
-      --piano-h: clamp(150px, calc(100dvh - 100px), 260px);
-      display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-      grid-template-rows: repeat(6, auto) 1fr;
-      align-items: start;
-      gap: 12px var(--gap);
-    }
-    .identify > * {
-      grid-column: 1;
-    }
-    .identify > :global(.piano) {
-      grid-column: 2;
-      grid-row: 1 / -1;
-    }
-    /* Actions sit right under Play so they never fall below the fold as feedback grows. */
-    .identify > .action-bar {
-      grid-row: 2;
-    }
-    .identify > p {
-      margin: 0;
-    }
+    .prompt { padding-block: 8px; }
+    .identify { --piano-h: 170px; }
   }
 </style>

@@ -95,11 +95,6 @@ export function createQuestion(
   };
 }
 
-/** Pick which exercise to run next from a set of kinds (Mixed Practice uses two). */
-export function pickKind(kinds: readonly ExerciseKind[], rng: Rng): ExerciseKind {
-  return pick(kinds, rng);
-}
-
 // ---------------------------------------------------------------- evaluation
 
 export interface IdentifyResult {
@@ -173,9 +168,8 @@ export type SingResult =
     };
 
 /**
- * Evaluate a "Check Answer" submission. `submitted` is the latest stable pitch the
- * tracker had (or why there was none); intermediate exploratory pitches never reach
- * this function.
+ * Evaluate a frozen capture submitted with Check answer. Legacy missing/stale
+ * inputs are still understood; intermediate exploratory pitches are not scored.
  */
 export function evaluateSing(
   question: Question,

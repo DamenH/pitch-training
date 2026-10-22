@@ -22,16 +22,8 @@ export async function verifyLibrary(context, page, url) {
     };
     localStorage.setItem('unrelated-app:sentinel', 'keep me');
   });
-  // Interrupting a reference sequence must not lose the held key's highlight.
-  await page.locator('.piano button').first().click();
-  await page.getByRole('button', { name: 'Add to sequence', exact: true }).click();
-  await page.getByRole('button', { name: 'Play sequence', exact: true }).click();
-  await page.keyboard.down('a');
-  await expect(page.locator('.piano .playing')).toHaveCount(1);
-  await page.keyboard.up('a');
-  await expect(page.locator('.piano .playing')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await page.evaluate(() => { globalThis.pianoTestVoices = []; });
+  await expect(page.getByRole('button', { name: 'Add to sequence', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Play again', exact: true })).toHaveCount(0);
   // Computer-key chords: releasing keys must leave both reference tones ringing.
   await page.keyboard.down('a');
   await page.keyboard.down('d');
@@ -63,16 +55,23 @@ export async function verifyLibrary(context, page, url) {
   assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
 
   const score = { version: 1, title: 'Saved chord 🎹', notes: [60, 64, 67].map((midi) => ({ midi, time: 0, duration: 2, velocity: 0.7 })) };
+  await page.goto(`${url}#/import`);
   await page.getByText('Paste a text score (JSON)', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Score JSON' }).fill(JSON.stringify(score));
   await page.getByRole('button', { name: 'Load text score', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue(score.title);
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-  await expect(page.getByRole('button', { name: score.title, exact: true })).toBeVisible();
+  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Play piece', exact: true }).click();
+  await expect.poll(async () => Number(await page.getByRole('progressbar', { name: 'Piece playback progress' }).getAttribute('value'))).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
+  await page.goto(`${url}#/reference`);
+  await page.getByRole('button', { name: score.title, exact: true }).click();
   await page.getByRole('button', { name: 'Play piece', exact: true }).click();
   await expect(page.locator('.piano .playing')).toHaveCount(3);
   await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
   await expect(page.locator('.piano .playing')).toHaveCount(0);
+  await page.getByText('Download piece', { exact: true }).click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export score', exact: true }).click();
   const download = await downloadPromise;
@@ -95,15 +94,19 @@ export async function verifyLibrary(context, page, url) {
   const track = midi.addTrack();
   for (const note of [60, 64, 67]) track.addNote({ midi: note, time: 0, duration: 1 });
   const bytes = Buffer.from(midi.toArray());
+  await page.goto(`${url}#/import`);
   const fileInput = page.getByLabel('Choose or drop a MIDI / JSON file');
   await fileInput.setInputFiles({ name: 'chord.mid', mimeType: 'audio/midi', buffer: bytes });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Imported MIDI chord');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
+  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Imported MIDI chord', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?midi=${bytes.toString('base64url')}`);
   await expect(page.getByText('Loaded from link.', { exact: false })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Imported MIDI chord');
 
+  await page.goto(`${url}#/import`);
   await page.evaluate((score) => {
     const transfer = new DataTransfer();
     transfer.items.add(new File([JSON.stringify(score)], 'dropped.json', { type: 'application/json' }));
@@ -111,6 +114,8 @@ export async function verifyLibrary(context, page, url) {
   }, { ...score, title: 'Dropped JSON' });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Dropped JSON');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
+  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Dropped JSON', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?score=INVALID!`);
   await expect(page.getByRole('alert')).toContainText('Invalid');
@@ -215,6 +220,7 @@ async function verifyExamples(context, page, url) {
     await expect.poll(() => page.locator('.piano .playing').count()).toBeGreaterThan(0);
     await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
   }
+  await page.getByText('Download piece', { exact: true }).click();
   const downloaded = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download MIDI', exact: true }).click();
   const download = await downloaded;
@@ -222,13 +228,17 @@ async function verifyExamples(context, page, url) {
   const bytes = await readFile(await download.path());
   const midi = new Midi(bytes);
   assert.equal(midi.tracks.reduce((sum, track) => sum + track.notes.length, 0), 64);
+  await page.goto(`${url}#/import`);
   await page.getByLabel('Choose or drop a MIDI / JSON file').setInputFiles({ name: 'round.mid', mimeType: 'audio/midi', buffer: bytes });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Frère Jacques — two-voice round');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
+  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete Frère Jacques — two-voice round', exact: true }).click();
+  await page.getByText('Browse examples', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Load Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?example=chromatic-scale`);
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Chromatic scale');
@@ -264,10 +274,12 @@ export async function verifyStorageFallback(browser, origin) {
     await page.reload();
     await expect(page.getByLabel('Lowest octave')).toHaveValue('5');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('pitch-training:settings/v1')).playbackOctaveMin), 2);
-    await page.goto(`${origin}/standard/#/reference`);
+    await page.goto(`${origin}/standard/#/import`);
     await page.getByText('Paste a text score (JSON)', { exact: true }).click();
     await page.getByRole('button', { name: 'Load text score', exact: true }).click();
     await page.getByRole('button', { name: 'Save to library', exact: true }).click();
+    await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+    await page.goto(`${origin}/standard/#/reference`);
     await expect(page.getByRole('button', { name: 'C major chord', exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('button', { name: 'C major chord', exact: true })).toBeVisible();

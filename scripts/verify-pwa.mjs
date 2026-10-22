@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { verifyLibrary, verifyStorageFallback } from './verify-library.mjs';
+import { verifyLayout, verifySinging } from './verify-singing.mjs';
 
 // Exercise real service workers under subpaths, as on shared hosting / GitHub Pages.
 let update = false;
@@ -113,6 +114,8 @@ try {
     await expect(page.getByRole('heading', { name: 'Reference Library', exact: true })).toBeVisible();
 
     await verifyLibrary(context, page, url);
+    await verifySinging(page, url);
+    await verifyLayout(page, url);
 
     await context.setOffline(false);
     update = true;

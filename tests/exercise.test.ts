@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { candidateNotes, createQuestion, generateTarget, pickKind, type Rng } from '../src/domain/exercise';
+import { candidateNotes, createQuestion, generateTarget, type Rng } from '../src/domain/exercise';
 import { midiToOctave, midiToPitchClass, type PitchClass } from '../src/domain/music';
 import { defaultSettings, type Settings } from '../src/domain/settings';
 
@@ -93,7 +93,7 @@ describe('generateTarget', () => {
   });
 });
 
-describe('createQuestion / pickKind', () => {
+describe('createQuestion', () => {
   it('captures the scoring policy and target pitch class', () => {
     const s = settings({ scoringPolicy: 'exact' });
     const q = createQuestion('sing-test', s, seeded(7));
@@ -108,10 +108,4 @@ describe('createQuestion / pickKind', () => {
     expect(a.id).not.toBe(b.id);
   });
 
-  it('picks only from the given kinds', () => {
-    const rng = seeded(9);
-    const seen = new Set<string>();
-    for (let i = 0; i < 100; i++) seen.add(pickKind(['identify', 'sing-test'], rng));
-    expect([...seen].sort()).toEqual(['identify', 'sing-test']);
-  });
 });

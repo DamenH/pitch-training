@@ -7,7 +7,7 @@ import { STORAGE_PREFIX as PREFIX } from './storageScope';
 try {
   const marker = `${PREFIX}legacy-copied/v1`;
   if (localStorage.getItem(marker) === null) {
-    for (const key of ['settings/v1', 'history/v1', 'reference-sequence/v1']) {
+    for (const key of ['settings/v1', 'history/v1']) {
       const previous = localStorage.getItem(`pitch-training:${key}`);
       if (previous !== null && localStorage.getItem(PREFIX + key) === null) localStorage.setItem(PREFIX + key, previous);
     }

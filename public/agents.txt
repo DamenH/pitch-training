@@ -16,8 +16,9 @@ CAPABILITIES
   Pedal-held notes end at pedal-up, retrigger of the same note, or track end.
 - MIDI 0-127 can be played by transposing the nearest available recording;
   the on-screen keyboard shows octaves 1-7.
-- Nothing auto-plays or auto-saves when a link opens. The user presses Play piece
-  or Save to library in Reference Library -> Piano pieces.
+- Nothing auto-plays or auto-saves when a link opens. The user presses Play
+  or Save in Reference Library -> Piano pieces. File and pasted-JSON imports
+  are on the separate Import tab, with the same preview, save and share controls.
 
 TEXT FORMAT
 UTF-8 JSON (not JavaScript, not ABC notation), example:
@@ -107,7 +108,7 @@ function base64url(bytes) {
 STORAGE
 Saved pieces use an IndexedDB database named for Pitch Training and the app's
 URL directory. localStorage is a fallback when IndexedDB is unavailable.
-Settings/history/reference sequences also use path-scoped, prefixed keys;
+Settings/history also use path-scoped, prefixed keys;
 legacy Pitch Training data is copied once without deleting the old keys.
 Saves report storage failures. Export files for durable backups. The library
 holds up to 100 pieces. A different app path gets its own library namespace.

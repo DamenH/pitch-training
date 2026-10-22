@@ -2,7 +2,6 @@
   import { onDestroy, untrack } from 'svelte';
   import {
     createQuestion,
-    pickKind,
     type ExerciseKind,
     type IdentifyResult,
     type Question,
@@ -18,12 +17,12 @@
   import IdentifyQuestion from '../components/IdentifyQuestion.svelte';
   import SingQuestion from '../components/SingQuestion.svelte';
 
-  let { kinds, mixed = false }: { kinds: readonly ExerciseKind[]; mixed?: boolean } = $props();
+  let { kind }: { kind: ExerciseKind } = $props();
 
   const rng = Math.random;
 
   function makeQuestion(previous?: Question): Question {
-    return createQuestion(pickKind(kinds, rng), settings.value, rng, previous);
+    return createQuestion(kind, settings.value, rng, previous);
   }
 
   let question = $state<Question>(untrack(() => makeQuestion()));
@@ -32,23 +31,10 @@
   let answered = $state(0);
   let correct = $state(0);
 
-  // Per-question bookkeeping for singing tests: the first musical answer is the one that
-  // is scored; later checks are feedback only. A question that only ever produced
-  // "no detection" is logged once, as a failed detection, when the user moves on.
+  // Only the first checked capture affects the session and persisted history.
   let scored = false;
-  let pendingNoDetection: SingResult | null = null;
-  let pendingNoDetectionMs = 0;
-
-  function flushPending() {
-    if (!scored && pendingNoDetection) {
-      history.add(entryFromResult(question, pendingNoDetection, { mixed, responseMs: pendingNoDetectionMs }));
-    }
-    scored = false;
-    pendingNoDetection = null;
-  }
-
   function next() {
-    flushPending();
+    scored = false;
     question = makeQuestion(question);
   }
 
@@ -56,39 +42,27 @@
     scored = true;
     answered += 1;
     if (result.correct) correct += 1;
-    history.add(entryFromResult(question, result, { mixed, responseMs }));
+    history.add(entryFromResult(question, result, { mixed: false, responseMs }));
   }
 
   function onSing(result: SingResult, responseMs: number) {
-    if (scored) return;
-    if (result.outcome === 'no-detection') {
-      pendingNoDetection = result;
-      pendingNoDetectionMs = responseMs;
-      return;
-    }
+    if (scored || result.outcome === 'no-detection') return;
     scored = true;
     answered += 1;
     if (result.outcome === 'correct') correct += 1;
-    history.add(entryFromResult(question, result, { mixed, responseMs }));
+    history.add(entryFromResult(question, result, { mixed: false, responseMs }));
   }
 
   onDestroy(() => {
-    flushPending();
     mic.stop();
     stopAll();
   });
-
-  const kindLabel: Record<ExerciseKind, string> = {
-    identify: 'Hear → Identify',
-    'sing-practice': 'See → Sing (practice)',
-    'sing-test': 'See → Sing (test)',
-  };
 
   const s = $derived(settings.value);
 
   $effect(() => {
     void [s.waveform, s.playbackOctaveMin, s.playbackOctaveMax];
-    if (kinds.includes('identify')) preloadPlaybackRange();
+    if (kind === 'identify') preloadPlaybackRange();
   });
 
   const showTally = $derived(question.kind !== 'sing-practice');
@@ -96,17 +70,11 @@
 
 <div class="stack exercise">
   <div class="meta">
-    {#if mixed}
-      <span class="badge">{kindLabel[question.kind]}</span>
-    {/if}
     <span class="badge" title="Enabled notes">{s.enabledPitchClasses.length} of 12 notes</span>
     {#if showTally}
       <span class="badge" aria-label={`This session: ${correct} correct out of ${answered}`}>
         Session {correct}/{answered}
       </span>
-    {/if}
-    {#if mixed && question.kind === 'identify' && mic.status === 'running'}
-      <button type="button" class="badge mic-off" onclick={() => mic.stop()}>Mic on · stop</button>
     {/if}
     <a class="settings-link small" href={href('settings')}>Adjust notes &amp; range</a>
   </div>
@@ -138,18 +106,6 @@
   }
   .settings-link {
     margin-left: auto;
-  }
-  .mic-off {
-    border: 1px solid var(--bad);
-    color: var(--bad);
-    background: var(--bad-soft);
-    cursor: pointer;
-    min-height: 36px;
-  }
-  @media (pointer: fine) {
-    .mic-off {
-      min-height: 28px;
-    }
   }
   /* Comfortable touch target without making the link look like a button. */
   @media (pointer: coarse) {

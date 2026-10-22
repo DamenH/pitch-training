@@ -1,4 +1,4 @@
-import { playNote, playSequence, startPolyNote } from '../audio/synth';
+import { playNote, startPolyNote } from '../audio/synth';
 import { preloadPianoRange } from '../audio/piano';
 import { midiToFrequency } from '../domain/music';
 import { settings } from './settings.svelte';
@@ -14,10 +14,6 @@ export function playMidi(midi: number): Promise<void> {
 
 export function playMidiPoly(midi: number): void {
   startPolyNote(midiToFrequency(midi), options());
-}
-
-export function playMidiSequence(notes: readonly number[]): Promise<void> {
-  return playSequence(notes.map(midiToFrequency), options());
 }
 
 /** Start fetching piano samples for a range of notes, if the piano sound is selected. */

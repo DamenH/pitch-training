@@ -4,7 +4,6 @@
     | 'ear'
     | 'mic'
     | 'check'
-    | 'shuffle'
     | 'chart'
     | 'gear'
     | 'note'
@@ -43,8 +42,6 @@
     <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
   {:else if name === 'check'}
     <circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 5-6" />
-  {:else if name === 'shuffle'}
-    <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
   {:else if name === 'chart'}
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   {:else if name === 'gear'}

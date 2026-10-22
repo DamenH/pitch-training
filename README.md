@@ -11,11 +11,11 @@ needed for exercises. Microphone audio is analysed in memory on your device and 
 
 | Destination | What it does |
 | --- | --- |
-| **Reference Library** | Polyphonic piano (octaves 1–7): tap keys to hear full reference tones, including chords. Shows note name, octave and frequency. Start the microphone to match your voice to the last selected key, using the same pitch feedback and scoring settings as Sing. Build a short reference sequence or import, save, play and share piano pieces from MIDI files, JSON text or encoded links. Computer keys `A W S E D F T G Y H U J` play C–B, `Z`/`X` change octave. |
+| **Reference Library** | Polyphonic piano (octaves 1–7): tap keys to hear full reference tones, including chords. Shows note name, octave and frequency. Start the microphone to match your voice to the last selected key, using the same pitch feedback and scoring settings as Sing. Browse built-in examples and saved pieces; play, save, share and download them. The microphone card sits directly below the piano, in one column. Computer keys `A W S E D F T G Y H U J` play C–B, `Z`/`X` change octave. |
 | **Identify Notes** | Tap *Play note* to hear a random note, choose its pitch class on a labeled piano (silent until you submit), submit. After submitting, play any piano key to compare notes in the target's octave. No timer. Shows the correct note, your answer and the octave played. Optional single-play mode. Keys: `R`/`Space` play, `C`–`B` choose or play comparison notes after submitting (`Shift` = sharp), `Enter` submit / next. |
 | **Sing — Practice** | Shows a target note; live tuner-style feedback (detected note, cents, above/below/on target). Never auto-advances. A *Detector details* panel shows raw frequency, clarity, level and the reference note, so octave errors are visible. |
-| **Sing — Test** | Shows a target; no pitch feedback while you sing (only "listening / steady note" status). *Check Answer* evaluates the latest stable pitch. Unlimited checks per question. |
-| **Mixed Practice** | Randomly alternates Identify and Sing — Test, reusing the same components and scoring. |
+| **Sing — Test** | Hold a steady note for about 800 ms to fill the progress bar and lock an answer. Re-record to replace it, or Check answer to score the frozen capture. Pitch and correctness remain hidden until checking. |
+| **Import** | Choose or drop MIDI/JSON files, or paste a JSON score. Preview, edit the title, save to Reference, share, and download. Format information and agents.txt live here. |
 | **Settings** (gear) | Enabled notes (all / naturals / custom, never empty), playback octave range, vocal range with presets, scoring policy, tolerance, replay policy, volume, duration, sound (sampled grand piano, sine, triangle, warm), sharps/flats, history on/off, reset. |
 | **History** (chart) | Totals, accuracy per exercise and per pitch class, average response time, recent answers, *Clear history*. |
 
@@ -52,10 +52,10 @@ Run `npm run benchmark:links` to reproduce the measurements, `npm run check &&
 npm test` for checks, or `npm run test:pwa` for browser/offline checks. These
 measurements use self-contained data; unchanged built-in references are shorter.
 
-In **Reference Library → Piano pieces**, choose/drop a `.mid` / `.midi` file,
+In the **Import** tab, choose/drop a `.mid` / `.midi` file,
 choose/drop a JSON score file, or paste JSON under **Paste a text score**. Load the
-included chord example to try it. **Save to library** keeps any imported piece on
-this device; **Copy piece link** embeds it in a URL fragment. **Export score**
+included chord example to try it. **Save** keeps any imported piece on
+this device; **Share** embeds it in a URL fragment. **Export score**
 downloads a JSON backup. Links load a preview without automatically playing or saving.
 Playback highlights sounding notes in the selected octave of the reference piano.
 
@@ -88,7 +88,7 @@ Legacy links use `#/reference?score=BASE64URL_UTF8_JSON` or
 and limited to 64,000 characters; use file export/import for larger pieces.
 
 The library uses a path-namespaced IndexedDB database with localStorage fallback.
-Settings/history/reference-sequence keys are also path-namespaced; legacy values
+Settings/history keys are also path-namespaced; legacy values
 are copied once without deleting origin-wide data. This prevents accidental
 collisions between apps/paths, not access by other code on the same origin.
 Quota and browser origin-clearing still apply to all apps at that origin.
@@ -164,6 +164,7 @@ src/
   domain/          Pure, framework-free TypeScript (fully unit-tested)
     music.ts         MIDI ↔ frequency, pitch classes, naming, cents, octave equivalence
     pitch.ts         Observation reliability + StablePitchTracker (stable-note detection)
+    pitchCapture.ts  Target-independent held-note progress and immutable answer capture
     exercise.ts      Question generation, pitch comparison, answer evaluation
     settings.ts      Settings model, defaults, validation
     history.ts       History entries and summaries
@@ -175,8 +176,8 @@ src/
     synth.ts         Polyphonic sampled piano/oscillators, envelopes and score scheduling
     microphone.ts    getUserMedia + AnalyserNode + Pitchy (McLeod Pitch Method)
   lib/             Svelte 5 reactive stores (settings, history, mic, router) and helpers
-  components/      Piano, NoteChooser, PitchMeter, MicPanel, IdentifyQuestion, SingQuestion
-  pages/           ExercisePage (shared by all four exercise modes), Reference, Settings, History
+  components/      Piano, PitchMeter, MicPanel, PiecePlayer, ScoreLibrary, IdentifyQuestion, SingQuestion
+  pages/           ExercisePage (three exercise modes), Reference, Import, Settings, History
 tests/             Vitest specs, including synthetic pitch-observation sequences
 ```
 
@@ -185,11 +186,12 @@ The exercise model keeps five things distinct:
 1. **Question** — generated target (`createQuestion`), with the scoring policy captured at creation.
 2. **Observation** — one raw detector frame `{time, frequency, clarity, rms}`.
 3. **Stable pitch** — produced by `StablePitchTracker` only after a consistent run of reliable frames.
-4. **Submission** — the latest stable pitch at the moment of *Check Answer* (or the chosen pitch class in Identify).
+4. **Submission** — an immutable held-note capture from `PitchCapture` (or the chosen pitch class in Identify).
 5. **Result** — `evaluateIdentify` / `evaluateSing` output.
 
-All four exercise destinations render `ExercisePage` with a list of exercise kinds
-(`['identify']`, `['sing-practice']`, `['sing-test']`, or `['identify', 'sing-test']` for Mixed).
+The three exercise destinations render `ExercisePage` with one exercise kind.
+Reference browsing and Import share `PiecePlayer`; parsing and storage remain separate
+from playback and presentation. Old Mixed history entries remain readable.
 
 ## Piano sound
 
@@ -224,30 +226,30 @@ so playback needs no third-party network access.
   tolerated), with ≥ 5 frames in that window and ≥ 80 % of them within ±35 cents of the window median.
   The stable value is the median of the consistent frames, so a stray octave jump is outvoted.
   Glides while exploring your range don't qualify.
-- **Retention:** after you stop singing, the last stable pitch can still be submitted for **2 s**.
-  Older than that, the app reports "no recent steady note" instead of scoring stale data.
+- **Test capture:** `PitchCapture` accumulates about **800 ms** of steady singing, independent
+  of the target note. A short progress bar shows the hold; silence or a sustained pitch change
+  resets an unfinished capture. The median pitch is locked until Re-record or Next note.
+  Locked answers do not expire and can be checked after stopping the microphone.
 - **Scoring:** *Any octave* (default) measures cents against the nearest octave of the target pitch
   class (so A3/A4/A5 all count for A); *Exact note* measures against the exact target. Tolerance
   (default ±50 ¢, configurable 5–100 ¢) is inclusive.
 - **Octave errors:** MPM can report an octave too high or low, especially for low or breathy voices.
   Practice mode exposes the detected octave and raw data; in any-octave scoring this does not affect
   the result.
-- **History rules for singing:** the first check with a stable pitch is the scored answer for that
-  question (later checks are feedback). A question where only "no detection" checks happened is
-  stored once as a *failed detection*, which is not counted as incorrect. Practice mode is never scored.
+- **History rules for singing:** the first checked capture is the scored answer for that
+  question; later re-recordings/checks are feedback only. Recording and re-recording alone
+  do not change history. Check answer is disabled until a capture is locked. Practice is never scored.
+  Legacy failed-detection entries remain readable.
 
 ## Tradeoffs and limitations
 
 - **Offline storage:** a service worker caches the app and all piano sounds. Updates activate
-  after all app windows close. Browser storage cleanup can remove offline files and saved data.
+  after all app windows close, or immediately through Settings → Update & reload. Browser storage cleanup can remove offline files and saved data.
 - **iOS:** the hardware silent switch mutes Web Audio playback on some iOS versions — turn it off if
   you hear nothing. While the microphone is active, iOS may route playback differently or lower its
   volume; the mic is released when you leave a singing page, press *Stop*, or the tab is hidden.
-- **Mixed Practice** keeps the microphone running across Identify questions so you aren't asked for
-  permission repeatedly; a "Mic on · stop" badge is shown. Pitch tracking resets on every new
-  question, so a note played or sung earlier is never scored.
 - Pitch-class selection is uniform across enabled notes, then the octave is uniform within range.
   Immediate repeats of the same pitch class are avoided when more than one note is enabled.
-- Settings, history (capped at 5000 entries) and the reference sequence live in path-namespaced
+- Settings and history (capped at 5000 entries) live in path-namespaced
   `localStorage`; piano pieces use IndexedDB with a localStorage fallback. Clearing site data
   removes them. Music data and microphone recordings are never uploaded by the app.
