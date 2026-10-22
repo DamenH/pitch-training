@@ -1,4 +1,5 @@
 import { Midi } from '@tonejs/midi';
+import { packScore, unpackScore } from './compactScore';
 
 export interface ScoreNote {
   midi: number;
@@ -122,16 +123,22 @@ export function scoreFromHash(hash: string): PianoScore | null {
   const params = new URLSearchParams(hash.split('?')[1] ?? '');
   const score = params.get('score');
   const midi = params.get('midi');
-  if (score !== null && midi !== null) throw new Error('Use either score or midi in the link, not both.');
+  const compact = params.get('p');
+  if ([score, midi, compact].filter((value) => value !== null).length > 1) throw new Error('Use either score, midi or p in the link, not more than one.');
+  if (compact !== null) return validateScore(unpackScore(decodeBase64Url(compact)));
   if (score !== null) return parseScoreText(new TextDecoder('utf-8', { fatal: true }).decode(decodeBase64Url(score)));
   if (midi !== null) return parseMidi(decodeBase64Url(midi));
   return null;
 }
 
 export function scoreHash(score: PianoScore): string {
-  const payload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(validateScore(score))));
+  const packet = packScore(validateScore(score));
+  // Ensure quantization still satisfies the same playback/voice limits before
+  // offering a link. The stored source remains untouched.
+  validateScore(unpackScore(packet));
+  const payload = encodeBase64Url(packet);
   if (payload.length > MAX_LINK_CHARS) throw new Error('This piece is too large for a link. Export the score and share the file instead.');
-  return `#/reference?score=${payload}`;
+  return `#/reference?p=${payload}`;
 }
 
 export function scoreDuration(score: PianoScore): number {

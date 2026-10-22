@@ -16,10 +16,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run check && npm run test && npm run build",
-    "test:pwa": "npm run build && npm run build:single && node scripts/verify-pwa.mjs"
+    "test:pwa": "npm run build && npm run build:single && node scripts/verify-pwa.mjs",
+    "benchmark:links": "vitest run tests/share-size.test.ts --reporter=verbose --disableConsoleIntercept"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
+    "fflate": "^0.8.3",
     "pitchy": "^4.1.0"
   },
   "devDependencies": {

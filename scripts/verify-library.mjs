@@ -75,12 +75,15 @@ export async function verifyLibrary(context, page, url) {
 
   await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
   const shared = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
-  const encoded = new URLSearchParams(new URL(shared).hash.split('?')[1]).get('score');
-  assert.equal(JSON.parse(Buffer.from(encoded, 'base64url').toString()).title, score.title);
+  assert(new URLSearchParams(new URL(shared).hash.split('?')[1]).has('p'));
+  assert(shared.length < url.length + 120);
   await page.goto(shared);
   await expect(page.getByText('Loaded from link.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Play piece', exact: true })).toBeVisible();
   await expect(page.locator('.piano .playing')).toHaveCount(0);
+  // Existing self-contained JSON links remain readable.
+  await page.goto(`${url}#/reference?score=${Buffer.from(JSON.stringify(score)).toString('base64url')}`);
+  await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue(score.title);
 
   const midi = new Midi();
   midi.header.name = 'Imported MIDI chord';
@@ -166,6 +169,13 @@ async function verifyExamples(context, page, url) {
   await expect(page.getByRole('button', { name: 'Load Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?example=chromatic-scale`);
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Chromatic scale');
+  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
+  const exampleLink = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
+  assert.equal(new URL(exampleLink).hash, '#/reference?example=chromatic-scale');
+  await page.getByRole('textbox', { name: 'Piece title', exact: true }).fill('My chromatic exercise');
+  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
+  const customLink = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
+  assert(new URL(customLink).hash.startsWith('#/reference?p='));
   await expect(page.getByRole('button', { name: 'Play piece', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?example=missing`);
   await expect(page.getByRole('alert')).toContainText('Unknown built-in MIDI example');

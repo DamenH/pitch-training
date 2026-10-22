@@ -6,7 +6,10 @@ const chord = { version: 1, title: '三和音 🎹', notes: [60, 64, 67].map((mi
 
 describe('piano score text and links', () => {
   it('round-trips overlapping notes and UTF-8 titles through the versioned hash', () => {
-    expect(scoreFromHash(scoreHash(validateScore(chord)))).toEqual(chord);
+    const restored = scoreFromHash(scoreHash(validateScore(chord)))!;
+    expect(restored.title).toBe(chord.title);
+    expect(restored.notes.map((n) => [n.midi, n.time, n.duration])).toEqual(chord.notes.map((n) => [n.midi, n.time, n.duration]));
+    expect(restored.notes[0]!.velocity).toBeCloseTo(0.7, 2);
   });
   it('defaults velocity/title and sorts note starts without changing overlap', () => {
     const s = parseScoreText(JSON.stringify({ version: 1, notes: [{ midi: 64, time: 1, duration: 1 }, { midi: 60, time: 0, duration: 2 }] }));
@@ -24,7 +27,7 @@ describe('piano score text and links', () => {
     expect(() => validateScore({ ...chord, notes: Array(65).fill(chord.notes[0]) })).toThrow(/64-voice/);
     expect(() => parseScoreText(' '.repeat(MAX_IMPORT_BYTES + 1))).toThrow(/large/);
     const large = validateScore({ version: 1, notes: Array.from({ length: 1000 }, (_, i) => ({ midi: 60, time: i, duration: 0.5 })) });
-    expect(() => scoreHash(large)).toThrow(/large for a link/);
+    expect(scoreHash(large).length).toBeLessThan(300);
   });
   it('rejects ambiguous/malformed/oversized link payloads', () => {
     expect(scoreFromHash('#/reference')).toBeNull();

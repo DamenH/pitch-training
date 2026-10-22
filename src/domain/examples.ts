@@ -100,6 +100,6 @@ export function exampleFromHash(hash: string): PianoScore | null {
   const params = new URLSearchParams(hash.split('?')[1] ?? '');
   const id = params.get('example');
   if (id === null) return null;
-  if (params.has('midi') || params.has('score')) throw new Error('Use example, midi or score in the link, not more than one.');
+  if (params.has('midi') || params.has('score') || params.has('p')) throw new Error('Use example, midi, score or p in the link, not more than one.');
   return pianoExample(id);
 }

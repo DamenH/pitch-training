@@ -20,6 +20,45 @@ There are no streaks, goals, timers, or question limits: practise as long as you
 
 ## Piano pieces and links
 
+### Compact-link experiment (separate preview)
+
+The baseline is committed as `8b5bd34` on `master`. The experiment lives on
+`experiment/compact-links` in the separate `pitch-training-compact-links` worktree.
+The experimental build is published as a separate preview; the original app remains on the baseline.
+
+Custom **Copy piece link** URLs now use `#/reference?p=...`: a versioned binary
+score, optionally raw-DEFLATE compressed, then base64url encoded. Common duration
+and velocity are stored once, notes share onset groups, and times use deltas.
+Unedited built-ins use their existing short `?example=ID` links. Legacy `?score=`
+JSON and `?midi=` links still open. Storage, text input and JSON exports keep their
+original format and precision.
+
+Sharing tradeoff: times/durations are rounded to milliseconds (minimum duration
+1 ms; endpoints clamped to one hour) and velocities to 7 bits. Ordinary timing
+error is at most 0.5 ms; endpoint/minimum-duration adjustments stay below 1 ms.
+Decoded links must still pass all existing note/voice limits. The added
+[fflate](https://github.com/101arrowz/fflate) dependency is bundled locally.
+
+Measured URL **fragment** sizes, excluding the common host/path:
+
+| Piece | Previous JSON | MIDI | Compact | Reduction vs JSON |
+| --- | ---: | ---: | ---: | ---: |
+| C major chord | 277 | 143 | 48 | 83% |
+| C major scale | 1,160 | 289 | 89 | 92% |
+| Chromatic scale | 1,889 | 412 | 122 | 94% |
+| Twinkle, Twinkle | 3,796 | 635 | 162 | 96% |
+| Frère Jacques round | 4,740 | 912 | 214 | 95% |
+
+Run `npm run benchmark:links` to reproduce the measurements, `npm run check &&
+npm test` for checks, or `npm run test:pwa` for browser/offline checks. These
+measurements use self-contained data; unchanged built-in references are shorter.
+
+Review with `git diff --cached` in the experiment worktree. To discard the staged
+experiment there, use `git restore --source=8b5bd34 --staged --worktree .`, then
+`npm ci` to restore dependencies. The original worktree remains on the committed
+baseline; no rollback of the original app is required. The preview publication follows this worktree's build directory; revoking that preview is a separate action. Keep this wire version experimental
+until the precision tradeoff and measurements are accepted.
+
 In **Reference Library → Piano pieces**, choose/drop a `.mid` / `.midi` file,
 choose/drop a JSON score file, or paste JSON under **Paste a text score**. Load the
 included chord example to try it. **Save to library** keeps any imported piece on
@@ -50,8 +89,8 @@ The versioned JSON format and raw-MIDI base64url encoding are documented in
 [public/agents.txt](public/agents.txt). That file is shipped as a **real static file**
 beside the built HTML, available at `APP_BASE/agents.txt` to browsers and `curl`
 without JavaScript or a service worker. It is not the sharing host's root `/agents.txt`.
-Links use `#/reference?score=BASE64URL_UTF8_JSON` or
-`#/reference?midi=BASE64URL_ORIGINAL_MIDI_BYTES`. Payloads are unpadded, not compressed,
+Legacy links use `#/reference?score=BASE64URL_UTF8_JSON` or
+`#/reference?midi=BASE64URL_ORIGINAL_MIDI_BYTES`. These payloads are unpadded, not compressed,
 and limited to 64,000 characters; use file export/import for larger pieces.
 
 The library uses a path-namespaced IndexedDB database with localStorage fallback.

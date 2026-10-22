@@ -26,12 +26,14 @@
   let selectionToken = 0;
   let examplesOpen = $state(true);
   let piecePanel = $state<HTMLElement>();
+  let loadedExample: { id: string; signature: string } | undefined;
   const duration = $derived(current ? scoreDuration(current) : 0);
   const agentsUrl = new URL('agents.txt', document.baseURI).href;
 
   function loadExample(id: string) {
     try {
       load(parseMidi(scoreToMidi(pianoExample(id))));
+      loadedExample = { id, signature: JSON.stringify(currentScore()) };
       notice = 'Loaded a built-in MIDI example. Play, save a copy, or download the MIDI file.';
     } catch (e) { fail(e); }
   }
@@ -48,6 +50,7 @@
     importToken++;
     importing = false;
     selectionToken++;
+    loadedExample = undefined;
     stop();
     current = score;
     title = score.title;
@@ -128,7 +131,9 @@
     error = '';
     try {
       const url = new URL(location.href);
-      url.hash = scoreHash(currentScore());
+      const score = currentScore();
+      url.hash = loadedExample?.signature === JSON.stringify(score)
+        ? `#/reference?example=${loadedExample.id}` : scoreHash(score);
       shareUrl = url.href;
       try {
         await navigator.clipboard.writeText(shareUrl);
@@ -170,6 +175,8 @@
         importToken++;
         importing = false;
         load(score);
+        const id = new URLSearchParams(location.hash.split('?')[1]).get('example');
+        if (id) loadedExample = { id, signature: JSON.stringify(currentScore()) };
         notice = 'Loaded from link. Play to listen; save to keep it on this device.';
       }
     } catch (e) { fail(e); }
