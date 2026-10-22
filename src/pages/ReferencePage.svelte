@@ -103,27 +103,25 @@
   <div class="stack instrument">
     <section class="stack keyboard" aria-labelledby="kb-heading">
       <h2 id="kb-heading" class="visually-hidden">Keyboard</h2>
-      <div class="toolbar">
-        <p class="readout" aria-live="polite">
-          {#if selectedMidi !== null}
-            <span class="note">{noteName(selectedMidi, s.spelling)}</span>
-            <span class="freq">{midiToFrequency(selectedMidi).toFixed(2)} Hz</span>
-          {/if}
-        </p>
-        <fieldset class="octaves">
-          <legend class="visually-hidden">Octave</legend>
-          <div class="segmented">
-            {#each octaves as o (o)}
-              <label class:checked={octave === o}>
-                <input type="radio" name="octave" value={o} checked={octave === o} onchange={() => setOctave(o)} />
-                <span>{o}</span>
-              </label>
-            {/each}
-          </div>
-        </fieldset>
-      </div>
+      <fieldset class="octaves">
+        <legend class="visually-hidden">Octave</legend>
+        <div class="segmented">
+          {#each octaves as o (o)}
+            <label class:checked={octave === o}>
+              <input type="radio" name="octave" value={o} checked={octave === o} onchange={() => setOctave(o)} />
+              <span>{o}</span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
       <Piano {octave} selected={selectedPc} spelling={s.spelling} onpress={press}
         onrelease={(pc) => releaseMidi(noteToMidi(pc, octave))} {active} />
+      <p class="readout" aria-live="polite">
+        {#if selectedMidi !== null}
+          <span class="note">{noteName(selectedMidi, s.spelling)}</span>
+          <span class="freq">{midiToFrequency(selectedMidi).toFixed(2)} Hz</span>
+        {/if}
+      </p>
     </section>
 
     <section class="stack voice" aria-label="Match with your voice">
@@ -149,38 +147,39 @@
     min-width: 0;
   }
 
+  /* Octave picker, keys and readout share the keyboard's width. */
   .keyboard {
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
 
-  /* Phones: readout above the octave picker, its height reserved so the keys never move. */
-  .toolbar {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+  .octaves,
+  .readout {
     width: 100%;
     max-width: 720px;
     margin-inline: auto;
   }
 
-  @container (min-width: 520px) {
-    .toolbar {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-4);
-    }
+  .octaves {
+    border: 0;
+    padding: 0;
+    min-width: 0;
   }
 
+  .octaves label {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Height reserved so nothing below moves when a key is first pressed. */
   .readout {
     display: flex;
     align-items: baseline;
+    justify-content: center;
     gap: var(--space-2);
-    min-height: 2.25rem;
+    min-height: 1.75rem;
   }
 
   .note {
-    font-size: var(--text-xl);
+    font-size: var(--text-lg);
     font-weight: 800;
     line-height: 1;
   }
@@ -189,18 +188,6 @@
     font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
-  }
-
-  .octaves {
-    flex: 0 1 300px;
-    border: 0;
-    padding: 0;
-    margin: 0;
-    min-width: 0;
-  }
-
-  .octaves label {
-    font-variant-numeric: tabular-nums;
   }
 
   .voice {
