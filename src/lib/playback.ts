@@ -16,10 +16,6 @@ export function playMidiPoly(midi: number): void {
   startPolyNote(midiToFrequency(midi), options());
 }
 
-export function holdMidi(midi: number): () => void {
-  return startPolyNote(midiToFrequency(midi), { ...options(), duration: 4.15 });
-}
-
 export function playMidiSequence(notes: readonly number[]): Promise<void> {
   return playSequence(notes.map(midiToFrequency), options());
 }

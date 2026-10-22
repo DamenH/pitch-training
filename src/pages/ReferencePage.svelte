@@ -12,12 +12,15 @@
   import { OCTAVE_MAX, OCTAVE_MIN } from '../domain/settings';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playMidiPoly, holdMidi, playMidiSequence, preloadNotes } from '../lib/playback';
+  import { playMidiPoly, playMidiSequence, preloadNotes } from '../lib/playback';
+  import { mic } from '../lib/mic.svelte';
   import { loadJson, saveJson } from '../lib/storage';
   import { pianoPitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from '../components/Piano.svelte';
   import Icon from '../components/Icon.svelte';
   import ScoreLibrary from '../components/ScoreLibrary.svelte';
+  import MicPanel from '../components/MicPanel.svelte';
+  import PitchMeter from '../components/PitchMeter.svelte';
 
   const SEQUENCE_KEY = 'reference-sequence/v1';
   const MAX_SEQUENCE = 16;
@@ -38,7 +41,6 @@
   let announce = $state('');
   let held = $state<number[]>([]);
   let scoreNotes = $state<number[]>([]);
-  const releases = new Map<number, () => void>();
   const keyboardNotes = new Map<string, number>();
   const active = $derived([...new Set([...held, ...scoreNotes].filter((m) => midiToOctave(m) === octave).map(midiToPitchClass))]);
 
@@ -56,20 +58,17 @@
     const midi = noteToMidi(pc, octave);
     selectedMidi = midi;
     if (playingSequence) stopSeq();
-    if (releases.has(midi)) return;
-    releases.set(midi, holdMidi(midi));
-    held = [...releases.keys()];
+    if (held.includes(midi)) return;
+    playMidiPoly(midi);
+    held = [...held, midi];
   }
 
   function releaseMidi(midi: number) {
-    releases.get(midi)?.();
-    releases.delete(midi);
-    held = [...releases.keys()];
+    // Releasing the key changes its highlight; the reference tone finishes naturally.
+    held = held.filter((note) => note !== midi);
   }
 
   function releaseKeys() {
-    for (const release of releases.values()) release();
-    releases.clear();
     keyboardNotes.clear();
     held = [];
   }
@@ -139,7 +138,8 @@
     }
   }
 
-  onDestroy(() => { releaseKeys(); stopAll(); });
+  mic.resetTracking();
+  onDestroy(() => { releaseKeys(); stopAll(); mic.stop(); });
 
   const octaves = Array.from({ length: OCTAVE_MAX - OCTAVE_MIN + 1 }, (_, i) => OCTAVE_MIN + i);
 </script>
@@ -195,7 +195,16 @@
     </p>
   </section>
 
-  <section class="card stack" aria-labelledby="seq-heading">
+  <section class="card stack" aria-label="Match with your voice">
+    <MicPanel />
+    {#if mic.status === 'running'}
+      <PitchMeter live={mic.live} targetMidi={selectedMidi} policy={s.scoringPolicy}
+        toleranceCents={s.toleranceCents} spelling={s.spelling} />
+    {/if}
+    <p class="muted small">Play a piano key, then match it with your voice.</p>
+  </section>
+
+  <section class="card stack sequence" aria-labelledby="seq-heading">
     <div class="seq-head">
       <h2 id="seq-heading">Reference sequence</h2>
       <span class="muted small">{sequence.length}/{MAX_SEQUENCE}</span>
@@ -407,6 +416,9 @@
       display: grid;
       grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr);
       align-items: start;
+    }
+    .sequence {
+      grid-column: 1 / -1;
     }
   }
 </style>

@@ -12,7 +12,7 @@
     spelling,
   }: {
     live: LiveState;
-    targetMidi: number;
+    targetMidi: number | null;
     policy: ScoringPolicy;
     toleranceCents: number;
     spelling: Spelling;
@@ -22,7 +22,7 @@
   const RANGE = 600;
 
   const reading = $derived(live.stable ?? live.smoothed);
-  const cmp = $derived(reading ? comparePitch(reading.midi, targetMidi, policy, toleranceCents) : null);
+  const cmp = $derived(reading && targetMidi !== null ? comparePitch(reading.midi, targetMidi, policy, toleranceCents) : null);
   const offTheScale = $derived(cmp !== null && Math.abs(cmp.cents) > RANGE);
   const position = $derived(cmp ? Math.max(-1, Math.min(1, cmp.cents / RANGE)) : 0);
   const centsToNearest = $derived(reading ? Math.round((reading.midi - Math.round(reading.midi)) * 100) : 0);
@@ -96,24 +96,28 @@
       {:else if direction === 'lower'}
         <span class="arrow" aria-hidden="true">▼</span> Sing lower
         <span class="sub">{describeOffset(cmp!.cents)} above</span>
+      {:else if targetMidi === null}
+        <span class="sub">Select a piano key to match</span>
       {:else}
         <span class="sub">&nbsp;</span>
       {/if}
     </div>
   </div>
 
-  <div class="track" aria-hidden="true">
-    <div class="zone" style:width={`${(toleranceCents / RANGE) * 50}%`}></div>
-    {#each [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6] as t (t)}
-      <div class="tick" class:centre={t === 0} style:left={`${50 + (t / 6) * 50}%`}></div>
-    {/each}
-    {#if cmp}
-      <div class="needle" class:edge={offTheScale} style:left={`${50 + position * 50}%`}></div>
-    {/if}
-  </div>
-  <div class="scale muted small" aria-hidden="true">
-    <span>−6 st (lower)</span><span>target</span><span>+6 st (higher)</span>
-  </div>
+  {#if targetMidi !== null}
+    <div class="track" aria-hidden="true">
+      <div class="zone" style:width={`${(toleranceCents / RANGE) * 50}%`}></div>
+      {#each [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6] as t (t)}
+        <div class="tick" class:centre={t === 0} style:left={`${50 + (t / 6) * 50}%`}></div>
+      {/each}
+      {#if cmp}
+        <div class="needle" class:edge={offTheScale} style:left={`${50 + position * 50}%`}></div>
+      {/if}
+    </div>
+    <div class="scale muted small" aria-hidden="true">
+      <span>−6 st (lower)</span><span>target</span><span>+6 st (higher)</span>
+    </div>
+  {/if}
 
   <p class="status" class:steady={live.status === 'stable'}>{statusText}</p>
 

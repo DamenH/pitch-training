@@ -22,7 +22,7 @@ export async function verifyLibrary(context, page, url) {
     };
     localStorage.setItem('unrelated-app:sentinel', 'keep me');
   });
-  // Interrupting a reference sequence must not lose the held key's release.
+  // Interrupting a reference sequence must not lose the held key's highlight.
   await page.locator('.piano button').first().click();
   await page.getByRole('button', { name: 'Add to sequence', exact: true }).click();
   await page.getByRole('button', { name: 'Play sequence', exact: true }).click();
@@ -32,7 +32,7 @@ export async function verifyLibrary(context, page, url) {
   await expect(page.locator('.piano .playing')).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.evaluate(() => { globalThis.pianoTestVoices = []; });
-  // Computer-key chords: releasing one key leaves the other voice alive.
+  // Computer-key chords: releasing keys must leave both reference tones ringing.
   await page.keyboard.down('a');
   await page.keyboard.down('d');
   await expect(page.locator('.piano .playing')).toHaveCount(2);
@@ -40,13 +40,16 @@ export async function verifyLibrary(context, page, url) {
   assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
   await page.keyboard.up('a');
   await expect(page.locator('.piano .playing')).toHaveCount(1);
-  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [2, 1]);
+  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
   await page.keyboard.up('d');
   await expect(page.locator('.piano .playing')).toHaveCount(0);
+  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
 
   // Real multi-touch pointer events, including independent releases.
+  await page.evaluate(() => { globalThis.pianoTestVoices = []; });
   const cdp = await context.newCDPSession(page);
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+  await page.locator('.piano').scrollIntoViewIfNeeded();
   const c = await page.locator('.piano button').nth(0).boundingBox();
   const e = await page.locator('.piano button').nth(4).boundingBox();
   const fingers = [c, e].map((box, i) => ({ x: box.x + box.width / 2, y: box.y + box.height * 0.8, id: i + 1 }));
@@ -56,6 +59,8 @@ export async function verifyLibrary(context, page, url) {
   await expect(page.locator('.piano .playing')).toHaveCount(1);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(page.locator('.piano .playing')).toHaveCount(0);
+  await page.waitForFunction(() => globalThis.pianoTestVoices.length >= 2);
+  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
 
   const score = { version: 1, title: 'Saved chord 🎹', notes: [60, 64, 67].map((midi) => ({ midi, time: 0, duration: 2, velocity: 0.7 })) };
   await page.getByText('Paste a text score (JSON)', { exact: true }).click();
@@ -131,7 +136,64 @@ export async function verifyLibrary(context, page, url) {
   await page.getByRole('button', { name: 'Delete Dropped JSON', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Dropped JSON', exact: true })).toHaveCount(0);
   await verifyExamples(context, page, url);
+  await verifyReferenceVoice(page, url);
   console.log('  music: keyboard and touch chords, text/MIDI/drop imports, links, IndexedDB, offline saves and same-origin path isolation passed');
+}
+
+async function verifyReferenceVoice(page, url) {
+  await page.goto(`${url}#/reference`);
+  await page.reload();
+  // Feed a real audio stream through the production detector without needing hardware.
+  await page.evaluate(() => {
+    const original = navigator.mediaDevices.getUserMedia;
+    const audio = new AudioContext();
+    const oscillator = audio.createOscillator();
+    const destination = audio.createMediaStreamDestination();
+    oscillator.frequency.value = 440;
+    oscillator.connect(destination);
+    oscillator.start();
+    navigator.mediaDevices.getUserMedia = async () => {
+      await audio.resume();
+      return destination.stream;
+    };
+    globalThis.referenceMicTest = { audio, oscillator, stream: destination.stream, original };
+  });
+  const voice = page.getByRole('region', { name: 'Match with your voice', exact: true });
+  await expect(page.getByRole('button', { name: 'Next note', exact: false })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: /^Target note:/ })).toHaveCount(0);
+  await voice.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect(voice.getByText('Microphone on', { exact: true })).toBeVisible();
+  await expect(voice.locator('.detected .note')).toHaveText('A4');
+  await expect(voice.getByText('Select a piano key to match', { exact: true })).toBeVisible();
+  await page.locator('.piano button').nth(9).click();
+  await expect(voice.locator('.hint')).toContainText('On target');
+  await page.locator('.piano button').first().click();
+  await expect(voice.locator('.hint')).toContainText('Sing higher');
+  await page.evaluate(() => { globalThis.referenceMicTest.oscillator.frequency.value = 261.6256; });
+  await expect(voice.locator('.hint')).toContainText('On target');
+  await voice.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(voice.getByRole('button', { name: 'Start microphone', exact: true })).toBeVisible();
+  assert.equal(await page.evaluate(() => globalThis.referenceMicTest.stream.getAudioTracks()[0].readyState), 'ended');
+  // Leaving Reference must also release the microphone, even while it is running.
+  await page.evaluate(() => {
+    const test = globalThis.referenceMicTest;
+    const destination = test.audio.createMediaStreamDestination();
+    test.oscillator.connect(destination);
+    test.stream = destination.stream;
+    navigator.mediaDevices.getUserMedia = async () => test.stream;
+  });
+  await voice.getByRole('button', { name: 'Start microphone', exact: true }).click();
+  await expect(voice.getByText('Microphone on', { exact: true })).toBeVisible();
+  await page.goto(`${url}#/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true }).first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => globalThis.referenceMicTest.stream.getAudioTracks()[0].readyState)).toBe('ended');
+  await page.evaluate(async () => {
+    const test = globalThis.referenceMicTest;
+    navigator.mediaDevices.getUserMedia = test.original;
+    await test.audio.close();
+    delete globalThis.referenceMicTest;
+  });
+  console.log('  reference voice: live detection, selected-note matching, stop and navigation cleanup passed');
 }
 
 async function verifyExamples(context, page, url) {
