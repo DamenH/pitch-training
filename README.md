@@ -11,13 +11,37 @@ needed for exercises. Microphone audio is analysed in memory on your device and 
 
 | Destination | What it does |
 | --- | --- |
-| **Reference Library** | Polyphonic piano (octaves 1–7): tap keys to hear full reference tones, including chords. Shows note name, octave and frequency. Start the microphone to match your voice to the last selected key, using the same pitch feedback and scoring settings as Sing. Browse built-in examples and saved pieces; play, save, share and download them. The microphone card sits directly below the piano, in one column. Computer keys `A W S E D F T G Y H U J` play C–B, `Z`/`X` change octave. |
-| **Identify Notes** | Tap *Play note* to hear a random note, choose its pitch class on a labeled piano (silent until you submit), submit. After submitting, play any piano key to compare notes in the target's octave. No timer. Shows the correct note, your answer and the octave played. Optional single-play mode. Keys: `R`/`Space` play, `C`–`B` choose or play comparison notes after submitting (`Shift` = sharp), `Enter` submit / next. |
-| **Sing — Practice** | Shows a target note; live tuner-style feedback (detected note, cents, above/below/on target). Never auto-advances. A *Detector details* panel shows raw frequency, clarity, level and the reference note, so octave errors are visible. |
-| **Sing — Test** | Hold a steady note for about 800 ms to fill the progress bar and lock an answer. Re-record to replace it, or Check answer to score the frozen capture. Pitch and correctness remain hidden until checking. |
-| **Import** | Choose or drop MIDI/JSON files, or paste a JSON score. Preview, edit the title, save to Reference, share, and download. Format information and agents.txt live here. |
-| **Settings** (gear) | Enabled notes (all / naturals / custom, never empty), playback octave range, vocal range with presets, scoring policy, tolerance, replay policy, volume, duration, sound (sampled grand piano, sine, triangle, warm), sharps/flats, history on/off, reset. |
-| **History** (chart) | Totals, accuracy per exercise and per pitch class, average response time, recent answers, *Clear history*. |
+| **Reference** | Polyphonic piano (octaves 1–7): tap keys to hear full reference tones, including chords. Shows note name, octave and frequency. Start the microphone to match your voice to the last selected key, using the same pitch feedback and scoring settings as Sing. Built-in examples and saved pieces sit below the piano on phones and alongside it on wide windows; play, save, share and download them. Computer keys `A W S E D F T G Y H U J` play C–B, `Z`/`X` change octave. |
+| **Identify** | Tap *Play note* to hear a random note, choose its pitch class on a labeled piano (silent until you submit), submit. After submitting, play any piano key to compare notes in the target's octave. No timer. Shows the correct note, your answer and the octave played. Optional single-play mode. Keys: `R`/`Space` play, `C`–`B` choose or play comparison notes after submitting (`Shift` = sharp), `Enter` submit / next. |
+| **Sing** | Shows a target note; live tuner-style feedback (detected note, cents, above/below/on target). Never auto-advances. A *Detector details* panel shows raw frequency, clarity, level and the reference note, so octave errors are visible. |
+| **Sing test** | Hold a steady note for about 800 ms to fill the progress bar and lock an answer. Re-record to replace it, or Check answer to score the frozen capture. Pitch and correctness remain hidden until checking. Keys: `Enter` check, `N` next. |
+| **Import** (+ in Pieces) | Choose or drop a MIDI/JSON file, or paste a JSON score. Preview, edit the title, save to Reference, share, and download. |
+| **Settings** (gear) | Enabled notes (all / naturals / custom, never empty), playback octave range, vocal range with presets, scoring policy, tolerance, replay policy, volume, duration, sound (sampled grand piano, sine, triangle, warm), sharps/flats, history on/off, reset, offline status and updates. |
+| **History** (chart) | Accuracy, totals, per-exercise and per-note accuracy, average response time, recent answers, *Clear history*. |
+
+Keyboard shortcuts are not spelled out in the interface; on desktop, hovering a button shows its key.
+
+### Layout and platform integration
+
+- **Phones:** a sticky title bar (History and Settings at the right), a bottom tab bar for the four
+  exercises, and pushed screens (Settings, History, Import) with a Back button. Primary actions stay
+  in the thumb zone above the tab bar. Phones on their side get an icon rail instead.
+- **Desktop:** a persistent sidebar, and pages that lay out by their own width (container queries).
+  The installed desktop app draws into the title bar area (Window Controls Overlay).
+- Each tab keeps its place: an unanswered question and the session tally survive visiting other
+  screens, and tabs reopen at their previous scroll position. Navigation uses the View Transitions API
+  (a fade between tabs, a slide for pushed screens) and respects reduced motion.
+- Sounds start on touch-down; the audio context unlocks on the first completed gesture.
+- Safari's `navigator.audioSession` is set to *playback*, so notes are audible with the ringer
+  switched off (*play-and-record* while the microphone is open).
+- The screen stays awake while the microphone listens or a piece plays (Screen Wake Lock).
+- Light haptics (Android) on answers and when a sung note locks.
+- Share uses the system share sheet on touch devices and copies the link elsewhere; piece playback
+  appears in system media controls (Media Session).
+- Confirmations and the download menu are bottom sheets on phones and small dialogs on desktop.
+- The manifest adds home-screen shortcuts, a maskable icon, `file_handlers` (open `.mid`/`.json`
+  with the installed app) and a `share_target` (share a MIDI file to the app on Android; the
+  service worker hands it to Import).
 
 There are no streaks, goals, timers, or question limits: practise as long as you like.
 
@@ -52,11 +76,11 @@ Run `npm run benchmark:links` to reproduce the measurements, `npm run check &&
 npm test` for checks, or `npm run test:pwa` for browser/offline checks. These
 measurements use self-contained data; unchanged built-in references are shorter.
 
-In the **Import** tab, choose/drop a `.mid` / `.midi` file,
-choose/drop a JSON score file, or paste JSON under **Paste a text score**. Load the
-included chord example to try it. **Save** keeps any imported piece on
-this device; **Share** embeds it in a URL fragment. **Export score**
-downloads a JSON backup. Links load a preview without automatically playing or saving.
+On the **Import** screen, choose/drop a `.mid` / `.midi` file,
+choose/drop a JSON score file, or paste JSON under **Paste a score** (it starts
+with a chord example). **Save** keeps any imported piece on
+this device; **Share** embeds it in a URL fragment. **Download** saves a MIDI
+file or a JSON backup. Links load a preview without automatically playing or saving.
 Playback highlights sounding notes in the selected octave of the reference piano.
 
 **Built-in MIDI examples** includes C major, A natural minor, C major pentatonic,
@@ -175,8 +199,9 @@ src/
     context.ts       Single shared AudioContext, resumed from user gestures
     synth.ts         Polyphonic sampled piano/oscillators, envelopes and score scheduling
     microphone.ts    getUserMedia + AnalyserNode + Pitchy (McLeod Pitch Method)
-  lib/             Svelte 5 reactive stores (settings, history, mic, router) and helpers
-  components/      Piano, PitchMeter, MicPanel, PiecePlayer, ScoreLibrary, IdentifyQuestion, SingQuestion
+  lib/             Svelte 5 reactive stores (settings, history, mic, router, toast) and helpers
+    native.ts        Platform integrations: touch-down press, haptics, audio session, wake lock
+  components/      Piano, PitchMeter, MicPanel, PiecePlayer, ScoreLibrary, Sheet, IdentifyQuestion, SingQuestion
   pages/           ExercisePage (three exercise modes), Reference, Import, Settings, History
 tests/             Vitest specs, including synthetic pitch-observation sequences
 ```
@@ -211,7 +236,7 @@ so playback needs no third-party network access.
   When every note C1–B7 was rendered and measured, all were within ±5¢ of 12-TET A440 (mean ≈1.5¢).
   The lowest octave is the least certain, because the fundamental is weak there.
 - Levels are peak-normalized per sample so registers play at similar loudness.
-- Samples load on demand: the visible octave in the Reference Library, and the configured octave range
+- Samples load on demand: the visible octave in Reference, and the configured octave range
   in Identify. If a sample can't load, that note falls back to a synthesized tone.
 
 ## Pitch detection and scoring details

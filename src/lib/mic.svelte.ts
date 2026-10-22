@@ -3,6 +3,7 @@
 
 import { MicError, PitchInput, type MicErrorCode } from '../audio/microphone';
 import { StablePitchTracker, type LiveState } from '../domain/pitch';
+import { keepAwake, setAudioSession } from './native';
 
 export type MicStatus = 'idle' | 'starting' | 'running' | 'error';
 
@@ -30,6 +31,7 @@ class MicController {
     this.status = 'starting';
     this.error = null;
     this.tracker.reset();
+    setAudioSession('play-and-record');
     try {
       await this.input.start(
         (obs) => {
@@ -41,7 +43,10 @@ class MicController {
         },
         (err) => this.fail(err),
       );
-      if (this.input.running) this.status = 'running';
+      if (this.input.running) {
+        this.status = 'running';
+        keepAwake('microphone', true);
+      }
     } catch (err) {
       this.fail(err instanceof MicError ? err : new MicError('unknown', String(err)));
     }
@@ -49,6 +54,7 @@ class MicController {
 
   stop(): void {
     this.input.stop();
+    this.release();
     this.tracker.reset();
     this.live = EMPTY;
     if (this.status !== 'error') this.status = 'idle';
@@ -65,8 +71,14 @@ class MicController {
     this.live = EMPTY;
   }
 
+  private release(): void {
+    keepAwake('microphone', false);
+    setAudioSession('playback');
+  }
+
   private fail(err: MicError): void {
     this.input.stop();
+    this.release();
     this.status = 'error';
     this.error = { code: err.code, message: err.message };
     this.live = EMPTY;

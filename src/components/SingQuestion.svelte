@@ -6,6 +6,8 @@
   import { PitchCapture } from '../domain/pitchCapture';
   import { mic } from '../lib/mic.svelte';
   import { settings } from '../lib/settings.svelte';
+  import { shouldIgnoreShortcut } from '../lib/keys';
+  import { haptic } from '../lib/native';
   import MicPanel from './MicPanel.svelte';
   import PitchMeter from './PitchMeter.svelte';
   import Icon from './Icon.svelte';
@@ -45,7 +47,12 @@
 
   $effect(() => {
     if (mode !== 'test') return;
-    if (mic.status === 'running') capture = recorder.push(mic.live);
+    if (mic.status === 'running') {
+      const wasLocked = recorder.state.phase === 'locked';
+      const next = recorder.push(mic.live);
+      if (!wasLocked && next.phase === 'locked') haptic('tap');
+      capture = next;
+    }
     else if (recorder.state.phase !== 'locked') capture = recorder.reset(performance.now());
   });
 
@@ -83,14 +90,15 @@
     const result = evaluateSing(question, { kind: 'ok', pitch: capture.pitch }, s.toleranceCents);
     if (result.outcome === 'no-detection') return;
     checked = true;
+    haptic(result.outcome === 'correct' ? 'success' : 'error');
     attempts = [{ n: attempts.length + 1, result }, ...attempts].slice(0, 6);
     onresult?.(result, Date.now() - question.createdAt);
     void tick().then(() => feedback?.scrollIntoView({ block: 'nearest' }));
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLButtonElement) return;
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    // Let Enter activate a focused button normally.
+    if (shouldIgnoreShortcut(e) || e.target instanceof HTMLButtonElement) return;
     if (e.key === 'Enter' && mode === 'test') {
       e.preventDefault();
       check();
@@ -106,26 +114,24 @@
 <svelte:window {onkeydown} />
 
 <section class="stack sing" aria-label={mode === 'practice' ? 'Sing practice' : 'Sing test'}>
-  <div class="card target" role="group" aria-label={`Target note: ${targetSpoken}${exact ? '' : ', any octave'}`}>
-    <span class="label">Sing</span>
+  <div class="target" role="group" aria-label={`Target note: ${targetSpoken}${exact ? '' : ', any octave'}`}>
+    <span class="eyebrow">Sing</span>
     <span class="note" aria-hidden="true">{targetLabel}</span>
   </div>
 
-  <div class="card stack mic-card">
+  <div class="stack listen">
     <MicPanel />
 
     {#if mode === 'practice' && mic.status === 'running'}
       <PitchMeter live={mic.live} targetMidi={question.targetMidi} policy={question.scoringPolicy}
         toleranceCents={s.toleranceCents} spelling={s.spelling} />
-    {:else if mode === 'test'}
-      {#if mic.status === 'running' || capture.phase === 'locked'}
+    {:else if mode === 'test' && (mic.status === 'running' || capture.phase === 'locked')}
+      <div class="capture">
         <p class="voice" class:steady={capture.phase === 'locked'} role="status">{voiceStatus}</p>
         <progress aria-label="Note capture progress" value={capture.progress} max="1"></progress>
-      {/if}
+      </div>
       {#if capture.phase === 'locked'}
         <button type="button" class="btn" onclick={rerecord}>Re-record</button>
-      {:else}
-        <p class="small muted capture-help">Sing a note and hold it steady to lock your answer.</p>
       {/if}
     {/if}
   </div>
@@ -133,11 +139,8 @@
   {#if mode === 'test'}
     <div aria-live="polite" class="stack feedback" bind:this={feedback}>
       {#if latest}
-        <div class="notice" class:good={latest.outcome === 'correct'} class:bad={latest.outcome === 'incorrect'}>
-          <p class="verdict">
-            <span aria-hidden="true">{latest.outcome === 'correct' ? '✓' : '✗'}</span>
-            {latest.outcome === 'correct' ? 'Match' : 'No match'}
-          </p>
+        <div class="notice verdict" class:good={latest.outcome === 'correct'} class:bad={latest.outcome === 'incorrect'}>
+          <p class="title">{latest.outcome === 'correct' ? 'Match' : 'No match'}</p>
           <p class="detail">
             You sang <strong>{noteName(latest.comparison.detectedMidi, s.spelling)}</strong>
             <span class="muted">({latest.sungFrequency.toFixed(1)} Hz)</span>:
@@ -149,7 +152,7 @@
     </div>
     {#if attempts.length > 1}
       <details class="attempts">
-        <summary>Earlier checks for this note ({attempts.length - 1})</summary>
+        <summary>Earlier checks ({attempts.length - 1})</summary>
         <ol reversed>
           {#each attempts.slice(1) as a (a.n)}
             <li>
@@ -165,18 +168,15 @@
 
   <div class="action-bar">
     {#if mode === 'test'}
-      <button type="button" class="btn primary" onclick={check} disabled={capture.phase !== 'locked' || checked}>
+      <button type="button" class="btn primary" onclick={check} disabled={capture.phase !== 'locked' || checked}
+        title="Check answer (Enter)">
         Check answer
       </button>
     {/if}
-    <button type="button" class="btn" class:primary={mode === 'practice'} onclick={onnext}>
+    <button type="button" class="btn" class:primary={mode === 'practice'} onclick={onnext} title="Next note (N)">
       Next note <Icon name="arrow-right" />
     </button>
   </div>
-
-  <p class="kbd-hint muted small">
-    Keyboard: {#if mode === 'test'}<kbd>Enter</kbd> check answer · {/if}<kbd>N</kbd> next note
-  </p>
 </section>
 
 <style>
@@ -185,56 +185,50 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 2px;
-    padding-block: 20px;
-  }
-  .label {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
+    gap: var(--space-1);
+    padding-block: var(--space-4) var(--space-2);
   }
   .note {
-    font-size: clamp(3.5rem, 18vw, 5.5rem);
+    font-size: var(--text-display);
     font-weight: 800;
     line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .capture {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
   .voice {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
+    text-align: center;
     font-weight: 600;
-    margin: 0;
     min-height: 1.5em;
     color: var(--text-muted);
   }
   .voice.steady {
     color: var(--text);
   }
-  .verdict {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin: 0 0 4px;
-  }
-  .detail {
-    margin: 0;
-  }
-  .attempts summary {
-    cursor: pointer;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-  }
   .attempts ol {
     margin: 6px 0 0;
-    font-size: 0.9rem;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
   }
-
-  progress { width: 100%; height: 8px; accent-color: var(--accent); }
-  .capture-help { margin: 0; }
-  .feedback:empty { display: none; }
+  progress {
+    height: 8px;
+  }
+  .feedback:empty {
+    display: none;
+  }
   @media (orientation: landscape) and (max-height: 500px) {
-    .target { flex-direction: row; justify-content: center; align-items: baseline; gap: 12px; padding-block: 8px; }
-    .note { font-size: 3rem; }
+    .target {
+      flex-direction: row;
+      justify-content: center;
+      align-items: baseline;
+      gap: var(--space-3);
+      padding-block: 0;
+    }
+    .note {
+      font-size: 3rem;
+    }
   }
 </style>

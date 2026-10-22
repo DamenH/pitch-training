@@ -17,7 +17,6 @@
     enabled = null,
     disabled = false,
     correct = null,
-    compact = false,
     label,
     onrelease,
     active = [],
@@ -35,13 +34,14 @@
     disabled?: boolean;
     /** After an answer: marks the correct key, and the selected key if it differs. */
     correct?: PitchClass | null;
-    compact?: boolean;
     label?: string;
   } = $props();
 
+  // Keys respond on touch-down, like an instrument; click only covers keyboard and assistive activation.
   function pointerDown(e: PointerEvent, pc: PitchClass) {
-    if (!onrelease || e.button !== 0) return;
-    (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+    const key = e.currentTarget as HTMLButtonElement;
+    if (e.button !== 0 || key.disabled) return;
+    if (onrelease) key.setPointerCapture(e.pointerId);
     onpress(pc);
   }
 
@@ -86,7 +86,6 @@
 
 <div
   class="piano"
-  class:compact
   role="group"
   aria-label={label ?? (octave === null ? 'Piano keyboard' : `Piano keyboard, octave ${octave}`)}
 >
@@ -114,12 +113,10 @@
       onkeydown={(e) => keyDown(e, pc)}
       onkeyup={(e) => keyUp(e, pc)}
       onclick={(e) => {
-        if (!onrelease) onpress(pc);
-        else if (e.detail === 0) {
-          // Assistive-technology activation without pointer or keyboard events.
-          onpress(pc);
-          setTimeout(() => onrelease?.(pc), 150);
-        }
+        if (e.detail !== 0) return;
+        onpress(pc);
+        // Assistive-technology activation of a held key: release it shortly after.
+        if (onrelease) setTimeout(() => onrelease?.(pc), 150);
       }}
     >
       <span class="label">
@@ -137,8 +134,10 @@
     position: relative;
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    /* Parents may set --piano-h (e.g. to fit a landscape phone); otherwise scale with width. */
-    height: var(--piano-h, clamp(180px, 50vw, 240px));
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
+    height: clamp(180px, 50vw, 240px);
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
@@ -195,10 +194,6 @@
     box-shadow: 0 0 0 2px var(--key-white);
   }
 
-  .piano.compact {
-    height: var(--piano-h, clamp(130px, 34vw, 180px));
-  }
-
   .key:disabled {
     cursor: default;
   }
@@ -236,5 +231,12 @@
 
   .label {
     pointer-events: none;
+  }
+
+  /* Phones on their side: leave room for the controls around the keyboard. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .piano {
+      height: 160px;
+    }
   }
 </style>

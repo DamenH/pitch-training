@@ -27,11 +27,14 @@
   } from '../domain/settings';
   import { settings } from '../lib/settings.svelte';
   import { playMidi } from '../lib/playback';
-  import { href } from '../lib/router.svelte';
+  import { onPress } from '../lib/native';
   import InstallApp from '../components/InstallApp.svelte';
+  import Icon from '../components/Icon.svelte';
+  import Sheet from '../components/Sheet.svelte';
 
   const s = $derived(settings.value);
   let notice = $state('');
+  let confirmReset = $state(false);
 
   const octaves = Array.from({ length: OCTAVE_MAX - OCTAVE_MIN + 1 }, (_, i) => OCTAVE_MIN + i);
   const vocalNotes = Array.from({ length: VOCAL_MIDI_MAX - VOCAL_MIDI_MIN + 1 }, (_, i) => VOCAL_MIDI_MIN + i);
@@ -66,14 +69,17 @@
   }
 
   function reset() {
-    if (confirm('Reset all settings to their defaults? Your history is kept.')) settings.reset();
+    confirmReset = false;
+    settings.reset();
   }
+
+  const REPLAYS: [ReplayPolicy, string][] = [['unlimited', 'Unlimited'], ['single', 'Single play']];
+  const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
 </script>
 
-<div class="page stack">
-  <InstallApp />
-  <section class="card stack" aria-labelledby="notes-h">
-    <h2 id="notes-h">Notes in exercises</h2>
+<div class="settings">
+  <section aria-labelledby="notes-h">
+    <h2 id="notes-h" class="eyebrow">Notes</h2>
     <fieldset class="pcs">
       <legend class="visually-hidden">Enabled notes</legend>
       {#each ALL_PITCH_CLASSES as pc (pc)}
@@ -98,20 +104,63 @@
       <button type="button" class="btn small" onclick={() => settings.update({ enabledPitchClasses: allPitchClasses() })}>
         All 12 notes
       </button>
-      <button
-        type="button"
-        class="btn small"
-        onclick={() => settings.update({ enabledPitchClasses: naturalPitchClasses() })}
-      >
-        Natural notes only
+      <button type="button" class="btn small" onclick={() => settings.update({ enabledPitchClasses: naturalPitchClasses() })}>
+        Naturals only
       </button>
-      <span class="muted small">{s.enabledPitchClasses.length} enabled</span>
     </div>
   </section>
 
-  <section class="card stack" aria-labelledby="play-h">
-    <h2 id="play-h">Playback (Identify &amp; Reference)</h2>
-    <div class="grid2">
+  <section aria-labelledby="sound-h">
+    <h2 id="sound-h" class="eyebrow">Sound</h2>
+    <div class="item">
+      <label class="field grow">
+        <span>Instrument</span>
+        <select value={s.waveform} onchange={(e) => settings.update({ waveform: e.currentTarget.value as Waveform })}>
+          <option value="piano">Grand piano</option>
+          <option value="sine">Sine</option>
+          <option value="triangle">Triangle</option>
+          <option value="warm">Warm</option>
+        </select>
+      </label>
+      <button type="button" class="btn" {...onPress(() => playMidi(69))}><Icon name="play" size={16} /> Test</button>
+    </div>
+    <label class="field item">
+      <span>Volume <output>{Math.round(s.volume * 100)}%</output></span>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={s.volume}
+        oninput={(e) => settings.update({ volume: Number(e.currentTarget.value) })}
+      />
+    </label>
+    <label class="field item">
+      <span>Note length <output>{s.noteDuration.toFixed(1)} s</output></span>
+      <input
+        type="range"
+        min={DURATION_MIN}
+        max={DURATION_MAX}
+        step="0.1"
+        value={s.noteDuration}
+        oninput={(e) => settings.update({ noteDuration: Number(e.currentTarget.value) })}
+      />
+    </label>
+    {#if s.waveform === 'piano'}
+      <p class="credit">
+        <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank" rel="noopener noreferrer"
+          >Salamander Grand Piano</a
+        >
+        by Alexander Holm,
+        <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer">CC BY 3.0</a>;
+        retuned to equal temperament.
+      </p>
+    {/if}
+  </section>
+
+  <section aria-labelledby="identify-h">
+    <h2 id="identify-h" class="eyebrow">Identify &amp; Reference</h2>
+    <div class="pair item">
       <label class="field">
         <span>Lowest octave</span>
         <select value={s.playbackOctaveMin} onchange={(e) => setOctaveMin(Number(e.currentTarget.value))}>
@@ -125,83 +174,32 @@
         </select>
       </label>
     </div>
-
-    <fieldset class="field">
-      <legend>Replays in Identify</legend>
-      <div class="radios">
-        {#each [['unlimited', 'Unlimited replays'], ['single', 'Single play (no replay before answering)']] as [value, label] (value)}
-          <label>
-            <input
-              type="radio"
-              name="replay"
-              {value}
-              checked={s.replayPolicy === value}
-              onchange={() => settings.update({ replayPolicy: value as ReplayPolicy })}
-            />
+    <div class="item">
+<fieldset class="field">
+      <legend>Replays</legend>
+      <div class="segmented">
+        {#each REPLAYS as [value, label] (value)}
+          <label class:checked={s.replayPolicy === value}>
+            <input type="radio" name="replay" {value} checked={s.replayPolicy === value}
+              onchange={() => settings.update({ replayPolicy: value })} />
             {label}
           </label>
         {/each}
       </div>
     </fieldset>
-
-    <label class="field">
-      <span>Volume <output>{Math.round(s.volume * 100)}%</output></span>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.05"
-        value={s.volume}
-        oninput={(e) => settings.update({ volume: Number(e.currentTarget.value) })}
-      />
-    </label>
-
-    <label class="field">
-      <span>Note duration <output>{s.noteDuration.toFixed(1)} s</output></span>
-      <input
-        type="range"
-        min={DURATION_MIN}
-        max={DURATION_MAX}
-        step="0.1"
-        value={s.noteDuration}
-        oninput={(e) => settings.update({ noteDuration: Number(e.currentTarget.value) })}
-      />
-    </label>
-
-    <div class="grid2 end">
-      <label class="field">
-        <span>Sound</span>
-        <select value={s.waveform} onchange={(e) => settings.update({ waveform: e.currentTarget.value as Waveform })}>
-          <option value="piano">Grand piano (sampled)</option>
-          <option value="sine">Sine (pure)</option>
-          <option value="triangle">Triangle (brighter)</option>
-          <option value="warm">Warm (soft harmonics, clearer on phone speakers)</option>
-        </select>
-      </label>
-      <button type="button" class="btn" onclick={() => playMidi(69)}>Test sound (A4)</button>
     </div>
-    {#if s.waveform === 'piano'}
-      <p class="muted small">
-        Piano: <a href="https://archive.org/details/SalamanderGrandPianoV3" target="_blank" rel="noopener noreferrer"
-          >Salamander Grand Piano</a
-        >
-        by Alexander Holm (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener noreferrer"
-          >CC BY 3.0</a
-        >), bundled with the app and retuned to exact equal temperament.
-      </p>
-    {/if}
   </section>
 
-  <section class="card stack" aria-labelledby="sing-h">
-    <h2 id="sing-h">Singing</h2>
-    <label class="field">
-      <span>Vocal range preset</span>
+  <section aria-labelledby="sing-h">
+    <h2 id="sing-h" class="eyebrow">Singing</h2>
+    <label class="field item">
+      <span>Vocal range</span>
       <select value={presetId} onchange={(e) => choosePreset(e.currentTarget.value)}>
         {#each VOCAL_PRESETS as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
         <option value="custom" disabled={presetId !== 'custom'}>Custom</option>
       </select>
     </label>
-    <div class="grid2">
+    <div class="pair item">
       <label class="field">
         <span>Lowest note</span>
         <select value={s.vocalLow} onchange={(e) => setVocal(Number(e.currentTarget.value), s.vocalHigh)}>
@@ -215,27 +213,22 @@
         </select>
       </label>
     </div>
-
-    <fieldset class="field">
-      <legend>Scoring</legend>
-      <div class="radios">
-        {#each [['pitch-class', 'Any octave (pitch class)', 'A3, A4 and A5 all count for A.'], ['exact', 'Exact note', 'A3 does not count for A4.']] as [value, label, help] (value)}
-          <label>
-            <input
-              type="radio"
-              name="scoring"
-              {value}
-              checked={s.scoringPolicy === value}
-              onchange={() => settings.update({ scoringPolicy: value as ScoringPolicy })}
-            />
-            <span><strong>{label}</strong><br /><span class="muted small">{help}</span></span>
+    <div class="item">
+<fieldset class="field">
+      <legend>Counts as correct</legend>
+      <div class="segmented">
+        {#each SCORING as [value, label] (value)}
+          <label class:checked={s.scoringPolicy === value}>
+            <input type="radio" name="scoring" {value} checked={s.scoringPolicy === value}
+              onchange={() => settings.update({ scoringPolicy: value })} />
+            {label}
           </label>
         {/each}
       </div>
     </fieldset>
-
-    <label class="field">
-      <span>Tolerance <output>±{s.toleranceCents} cents</output></span>
+    </div>
+    <label class="field item">
+      <span>Tolerance <output>±{s.toleranceCents}¢</output></span>
       <input
         type="range"
         min={TOLERANCE_MIN}
@@ -247,40 +240,100 @@
     </label>
   </section>
 
-  <section class="card stack" aria-labelledby="disp-h">
-    <h2 id="disp-h">Display &amp; data</h2>
-    <fieldset class="field">
+  <section aria-labelledby="disp-h">
+    <h2 id="disp-h" class="eyebrow">Display &amp; data</h2>
+    <div class="item">
+<fieldset class="field">
       <legend>Note names</legend>
-      <div class="radios inline">
-        <label>
+      <div class="segmented">
+        <label class:checked={s.spelling === 'sharps'}>
           <input type="radio" name="spelling" checked={s.spelling === 'sharps'} onchange={() => settings.update({ spelling: 'sharps' })} />
-          Sharps (C♯, F♯)
+          Sharps ♯
         </label>
-        <label>
+        <label class:checked={s.spelling === 'flats'}>
           <input type="radio" name="spelling" checked={s.spelling === 'flats'} onchange={() => settings.update({ spelling: 'flats' })} />
-          Flats (D♭, G♭)
+          Flats ♭
         </label>
       </div>
     </fieldset>
-    <label class="check">
+    </div>
+    <label class="item toggle">
+      <span>Keep history</span>
       <input
         type="checkbox"
+        role="switch"
+        class="switch"
         checked={s.historyEnabled}
         onchange={(e) => settings.update({ historyEnabled: e.currentTarget.checked })}
       />
-      <span>Keep exercise history on this device (<a href={href('history')}>view</a>)</span>
     </label>
+    <div class="item">
+      <button type="button" class="btn danger small" onclick={() => { confirmReset = true; }}>Reset settings</button>
+    </div>
   </section>
 
-  <div class="row">
-    <button type="button" class="btn danger" onclick={reset}>Reset settings</button>
-  </div>
+  <InstallApp />
 </div>
 
+<Sheet bind:open={confirmReset} label="Reset settings">
+  <p class="sheet-title">Reset all settings?</p>
+  <p class="sheet-text">History and saved pieces are kept.</p>
+  <button type="button" class="btn danger block" onclick={reset}>Reset settings</button>
+  <button type="button" class="btn plain block" onclick={() => { confirmReset = false; }}>Cancel</button>
+</Sheet>
+
 <style>
-  .page {
-    max-width: 640px;
-    margin: 0 auto;
+  /* Sections flow into two balanced columns when there is room. */
+  .settings {
+    column-gap: var(--space-6);
+  }
+
+  @container (min-width: 760px) {
+    .settings {
+      columns: 2;
+    }
+  }
+
+  .settings > :global(section) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    margin-bottom: var(--space-6);
+    break-inside: avoid;
+  }
+
+  .item {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--hairline);
+  }
+
+  div.item {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-3);
+  }
+
+  div.item > .field {
+    flex: 1;
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  .pair {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-weight: 600;
   }
 
   .pcs {
@@ -304,22 +357,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 48px;
-    border: 2px solid var(--border);
+    min-height: 44px;
     border-radius: var(--radius-sm);
     font-weight: 700;
-    cursor: pointer;
-    background: var(--surface);
+    background: var(--surface-2);
     color: var(--text-muted);
-    text-decoration: line-through;
-    text-decoration-color: var(--border);
+    -webkit-user-select: none;
+    user-select: none;
+    transition:
+      background-color 120ms,
+      color 120ms;
   }
 
   .pcs label.on {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent);
-    text-decoration: none;
+    background: var(--accent);
+    color: var(--accent-text);
   }
 
   .pcs label:has(input:focus-visible) {
@@ -332,43 +384,6 @@
     inset: 0;
     opacity: 0;
     margin: 0;
-    cursor: inherit;
-  }
-
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  @media (min-width: 480px) {
-    .grid2 {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  .grid2.end {
-    align-items: end;
-  }
-
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    border: 0;
-    padding: 0;
-    margin: 0;
-    min-width: 0;
-  }
-
-  .field > span:first-child,
-  .field legend {
-    font-weight: 600;
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 0;
-    margin-bottom: 6px;
   }
 
   output {
@@ -377,68 +392,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  select {
-    min-height: 44px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    max-width: 100%;
-  }
-
-  input[type='range'] {
-    width: 100%;
-    min-height: var(--tap);
-    accent-color: var(--accent);
-  }
-
-  .radios {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .radios.inline {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .radios label,
-  .check {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    min-height: 44px;
-    padding-block: 10px;
-    cursor: pointer;
-  }
-
-  .radios {
-    gap: 0;
-  }
-
-  /* Mouse users get the denser layout; touch keeps whole-row targets of at least 44px. */
-  @media (pointer: fine) {
-    input[type='range'] {
-      min-height: 32px;
-    }
-    .radios {
-      gap: 8px;
-    }
-    .radios label,
-    .check {
-      min-height: 32px;
-      padding-block: 0;
-    }
-  }
-
-  .radios input,
-  .check input {
-    width: 20px;
-    height: 20px;
-    margin: 2px 0 0;
-    flex: none;
-    accent-color: var(--accent);
+  .credit {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 </style>

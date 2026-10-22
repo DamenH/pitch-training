@@ -41,6 +41,7 @@ try {
   for (const variant of ['standard', 'portable']) {
     update = false;
     const context = await browser.newContext();
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -68,6 +69,7 @@ try {
     const icons = JSON.parse(manifest.data).icons;
     assert(icons.some((icon) => icon.sizes === '192x192'));
     assert(icons.some((icon) => icon.sizes === '512x512'));
+    assert(icons.some((icon) => icon.purpose === 'maskable'));
     await page.getByLabel('Lowest octave').selectOption('4');
     await page.getByLabel('Highest octave').selectOption('4');
     await page.evaluate(() => caches.open('unrelated-app-cache'));
@@ -95,7 +97,7 @@ try {
       return { sounds: sounds.length, paths: requests.map((request) => new URL(request.url).pathname) };
     });
     assert.equal(cached.sounds, variant === 'standard' ? 28 : 0);
-    for (const file of ['', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+    for (const file of ['', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']) {
       assert(cached.paths.includes(`/${variant}/${file}`), `Missing cached ${file}`);
     }
     await page.goto(`${url}#/identify`);
@@ -111,7 +113,7 @@ try {
       await page.locator('.piano button').first().click();
     }
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Reference Library', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reference', exact: true })).toBeVisible();
 
     await verifyLibrary(context, page, url);
     await verifySinging(page, url);

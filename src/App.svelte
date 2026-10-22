@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { href, router, type Route } from './lib/router.svelte';
+  import { tick } from 'svelte';
+  import { href, isTab, router, type Route } from './lib/router.svelte';
+  import { toast } from './lib/toast.svelte';
   import ImportPage from './pages/ImportPage.svelte';
   import ReferencePage from './pages/ReferencePage.svelte';
   import ExercisePage from './pages/ExercisePage.svelte';
@@ -10,125 +12,160 @@
   interface NavItem {
     route: Route;
     label: string;
-    short: string;
     icon: IconName;
   }
 
-  const NAV: NavItem[] = [
-    { route: 'reference', label: 'Reference Library', short: 'Reference', icon: 'piano' },
-    { route: 'identify', label: 'Identify Notes', short: 'Identify', icon: 'ear' },
-    { route: 'sing-practice', label: 'Sing — Practice', short: 'Sing', icon: 'mic' },
-    { route: 'sing-test', label: 'Sing — Test', short: 'Sing test', icon: 'check' },
-    { route: 'import', label: 'Import pieces', short: 'Import', icon: 'plus' },
+  const TABS: NavItem[] = [
+    { route: 'reference', label: 'Reference', icon: 'piano' },
+    { route: 'identify', label: 'Identify', icon: 'ear' },
+    { route: 'sing-practice', label: 'Sing', icon: 'mic' },
+    { route: 'sing-test', label: 'Test', icon: 'check' },
+  ];
+  const IMPORT: NavItem = { route: 'import', label: 'Import', icon: 'plus' };
+  const TOOLS: NavItem[] = [
+    { route: 'history', label: 'History', icon: 'chart' },
+    { route: 'settings', label: 'Settings', icon: 'gear' },
   ];
 
   const TITLES: Record<Route, string> = {
-    reference: 'Reference Library',
-    identify: 'Identify Notes',
-    'sing-practice': 'Sing Notes — Practice',
-    'sing-test': 'Sing Notes — Test',
-    import: 'Import pieces',
+    reference: 'Reference',
+    identify: 'Identify',
+    'sing-practice': 'Sing',
+    'sing-test': 'Sing test',
+    import: 'Import',
     settings: 'Settings',
     history: 'History',
   };
 
-  let main: HTMLElement | undefined = $state();
+  /** Content width per screen: focused exercises stay narrow, the reference spreads out. */
+  const WIDTHS: Record<Route, string> = {
+    reference: '1120px',
+    identify: '640px',
+    'sing-practice': '640px',
+    'sing-test': '640px',
+    import: '640px',
+    settings: '920px',
+    history: '760px',
+  };
 
-  const isExercise = $derived(['identify', 'sing-practice', 'sing-test'].includes(router.current));
+  let main: HTMLElement | undefined = $state();
+  let scrolled = $state(false);
+  const pushed = $derived(!isTab(router.current));
 
   $effect(() => {
     document.title = `${TITLES[router.current]} · Pitch Training`;
   });
 
-  // Move focus to the page on navigation so keyboard and screen-reader users land in the new content.
+  // On navigation, move focus to the new screen and reopen tabs where they were left.
   let first = true;
   $effect(() => {
-    void router.current;
+    const route = router.current;
     if (first) {
       first = false;
       return;
     }
     main?.focus({ preventScroll: true });
-    window.scrollTo(0, 0);
+    const y = isTab(route) ? router.savedScroll(route) : 0;
+    window.scrollTo(0, y);
+    if (y) void tick().then(() => window.scrollTo(0, y));
   });
+
+  function back(e: MouseEvent) {
+    if (!router.canGoBack) return;
+    e.preventDefault();
+    history.back();
+  }
+
+  const current = (route: Route) => (router.current === route ? 'page' : undefined);
 </script>
+
+<svelte:window onscroll={() => { scrolled = window.scrollY > 4; }} />
 
 <a class="skip" href="#main" onclick={(e) => { e.preventDefault(); main?.focus(); }}>Skip to content</a>
 
-<header class="top">
-  <div class="top-inner">
-    <a class="brand" href={href('identify')} aria-label="Pitch Training home">
-      <Icon name="note" />
-      <span>Pitch Training</span>
-    </a>
-    <nav class="desktop-nav" aria-label="Exercises">
-      {#each NAV as item (item.route)}
-        <a href={href(item.route)} aria-current={router.current === item.route ? 'page' : undefined}>
-          <span class="full">{item.label}</span><span class="short">{item.short}</span>
-        </a>
-      {/each}
-    </nav>
-    <div class="tools">
-      <a
-        class="tool"
-        href={href('history')}
-        aria-current={router.current === 'history' ? 'page' : undefined}
-        aria-label="History"
-        title="History"
-      >
-        <Icon name="chart" />
-      </a>
-      <a
-        class="tool"
-        href={href('settings')}
-        aria-current={router.current === 'settings' ? 'page' : undefined}
-        aria-label="Settings"
-        title="Settings"
-      >
-        <Icon name="gear" />
-      </a>
-    </div>
-  </div>
-</header>
+<!-- Installed desktop app with window controls overlay: a drag strip where the title bar was. -->
+<div class="titlebar" aria-hidden="true"></div>
 
-<main id="main" bind:this={main} tabindex="-1">
-  <h1 class="page-title" class:narrow={router.current !== 'reference'} class:exercise={isExercise}>{TITLES[router.current]}</h1>
-  {#if router.current === 'reference'}
-    <ReferencePage />
-  {:else if router.current === 'identify'}
-    <ExercisePage kind="identify" />
-  {:else if router.current === 'sing-practice'}
-    <ExercisePage kind="sing-practice" />
-  {:else if router.current === 'sing-test'}
-    <ExercisePage kind="sing-test" />
-  {:else if router.current === 'import'}
-    <ImportPage />
-  {:else if router.current === 'settings'}
-    <SettingsPage />
-  {:else}
-    <HistoryPage />
-  {/if}
+<nav class="sidebar" aria-label="Main">
+  <a class="brand" href={href('identify')} aria-label="Pitch Training home">
+    <span class="logo"><Icon name="note" size={18} /></span>
+    <span class="brand-name">Pitch Training</span>
+  </a>
+  <ul>
+    {#each TABS as item (item.route)}
+      <li>
+        <a href={href(item.route)} aria-current={current(item.route)}>
+          <Icon name={item.icon} /><span>{item.route === 'sing-test' ? 'Sing test' : item.label}</span>
+        </a>
+      </li>
+    {/each}
+    <li class="divided">
+      <a href={href(IMPORT.route)} aria-current={current(IMPORT.route)}>
+        <Icon name={IMPORT.icon} /><span>{IMPORT.label}</span>
+      </a>
+    </li>
+  </ul>
+  <ul class="tools">
+    {#each TOOLS as item (item.route)}
+      <li>
+        <a href={href(item.route)} aria-current={current(item.route)}>
+          <Icon name={item.icon} /><span>{item.label}</span>
+        </a>
+      </li>
+    {/each}
+  </ul>
+</nav>
+
+<main id="main" bind:this={main} tabindex="-1" style:--page-max={WIDTHS[router.current]}>
+  <header class="pagebar" class:scrolled class:pushed>
+    <div class="pagebar-inner">
+      {#if pushed}
+        <a class="icon-btn back" href={href(router.lastTab)} onclick={back} aria-label="Back"><Icon name="back" /></a>
+      {/if}
+      <h1>{TITLES[router.current]}</h1>
+      <div class="bar-tools">
+        {#each TOOLS as item (item.route)}
+          <a class="icon-btn" href={href(item.route)} aria-current={current(item.route)} aria-label={item.label} title={item.label}>
+            <Icon name={item.icon} />
+          </a>
+        {/each}
+      </div>
+    </div>
+  </header>
+
+  <div class="page">
+    {#if router.current === 'reference'}
+      <ReferencePage />
+    {:else if router.current === 'identify'}
+      <ExercisePage kind="identify" />
+    {:else if router.current === 'sing-practice'}
+      <ExercisePage kind="sing-practice" />
+    {:else if router.current === 'sing-test'}
+      <ExercisePage kind="sing-test" />
+    {:else if router.current === 'import'}
+      <ImportPage />
+    {:else if router.current === 'settings'}
+      <SettingsPage />
+    {:else}
+      <HistoryPage />
+    {/if}
+  </div>
 </main>
 
-<!-- Bottom tab bar on phones; a side rail on short landscape screens, where it also takes over the header's links. -->
-<nav class="tabbar" aria-label="Main">
-  {#each NAV as item (item.route)}
-    <a href={href(item.route)} aria-current={router.current === item.route ? 'page' : undefined}>
-      <Icon name={item.icon} />
-      <span>{item.short}</span>
+<nav class="tabbar" aria-label="Tabs">
+  {#each TABS as item (item.route)}
+    <a href={href(item.route)} aria-current={current(item.route)}>
+      <span class="tab-icon"><Icon name={item.icon} /></span>
+      <span>{item.label}</span>
     </a>
   {/each}
-  <div class="rail-only">
-    <a href={href('history')} aria-current={router.current === 'history' ? 'page' : undefined}>
-      <Icon name="chart" />
-      <span>History</span>
-    </a>
-    <a href={href('settings')} aria-current={router.current === 'settings' ? 'page' : undefined}>
-      <Icon name="gear" />
-      <span>Settings</span>
-    </a>
-  </div>
 </nav>
+
+<div class="toast-region" role="status" aria-live="polite">
+  {#key toast.id}
+    {#if toast.message}<p class="toast">{toast.message}</p>{/if}
+  {/key}
+</div>
 
 <style>
   .skip {
@@ -144,83 +181,83 @@
     top: calc(8px + var(--safe-top));
   }
 
-  .top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: color-mix(in srgb, var(--bg) 92%, transparent);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
-    padding-top: var(--safe-top);
-  }
-
-  .top-inner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    max-width: 1100px;
-    margin: 0 auto;
-    min-height: var(--header-height);
-    padding: 0 calc(16px + var(--safe-right)) 0 calc(16px + var(--safe-left));
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    color: var(--text);
-    text-decoration: none;
-    white-space: nowrap;
-  }
-
-  .desktop-nav {
+  .titlebar {
     display: none;
   }
 
-  .tools {
-    margin-left: auto;
-    display: flex;
-    gap: 4px;
-  }
-
-  .tool {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-  }
-  .tool[aria-current='page'] {
-    color: var(--accent);
-    background: var(--surface-2);
-  }
-  @media (hover: hover) {
-    .tool:hover {
-      color: var(--accent);
-      background: var(--surface-2);
-    }
-  }
+  /* ---------- Phone portrait: sticky title bar + bottom tab bar ---------- */
 
   main {
-    max-width: var(--content-max);
-    margin: 0 auto;
-    padding: 16px calc(16px + var(--safe-right)) calc(var(--nav-height) + var(--safe-bottom) + 24px)
-      calc(16px + var(--safe-left));
     outline: none;
+    padding: 0 calc(var(--gutter) + var(--safe-right)) calc(var(--nav-height) + var(--safe-bottom) + var(--space-5))
+      calc(var(--gutter) + var(--safe-left));
   }
 
-  .page-title {
-    font-size: 1.25rem;
-    margin-bottom: 12px;
+  .pagebar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin-inline: calc(-1 * (var(--gutter) + var(--safe-left))) calc(-1 * (var(--gutter) + var(--safe-right)));
+    padding: var(--safe-top) calc(var(--gutter) + var(--safe-right)) 0 calc(var(--gutter) + var(--safe-left));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    border-bottom: 1px solid transparent;
+    transition: border-color 160ms;
+    view-transition-name: pagebar;
   }
 
-  .page-title.narrow {
-    max-width: 640px;
+  .pagebar.scrolled {
+    border-bottom-color: var(--hairline);
+  }
+
+  .pagebar-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--bar-height);
+    max-width: var(--page-max);
     margin-inline: auto;
+  }
+
+  .pagebar h1 {
+    flex: 1;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .back {
+    margin-left: -10px;
+    color: var(--accent);
+  }
+
+  .bar-tools {
+    display: flex;
+    gap: 2px;
+    margin-right: -8px;
+  }
+
+  .bar-tools a[aria-current='page'] {
+    color: var(--accent);
+  }
+
+  .pushed .bar-tools {
+    display: none;
+  }
+
+  /* Pages lay themselves out by their own width (container queries), not the window's. */
+  .page {
+    container-type: inline-size;
+    max-width: var(--page-max);
+    margin-inline: auto;
+    padding-top: var(--space-2);
+  }
+
+  .sidebar {
+    display: none;
   }
 
   .tabbar {
@@ -230,10 +267,15 @@
     bottom: 0;
     z-index: 10;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    background: var(--surface);
-    border-top: 1px solid var(--border);
+    grid-template-columns: repeat(4, 1fr);
     padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    border-top: 1px solid var(--hairline);
+    view-transition-name: tabbar;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .tabbar a {
@@ -243,119 +285,250 @@
     justify-content: center;
     gap: 2px;
     min-height: var(--nav-height);
-    font-size: 0.72rem;
+    font-size: var(--text-xs);
     font-weight: 600;
     color: var(--text-muted);
     text-decoration: none;
-    text-align: center;
-    line-height: 1.1;
+    -webkit-touch-callout: none;
+  }
+
+  .tab-icon {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 28px;
+    border-radius: 999px;
+    transition:
+      background-color 160ms,
+      transform 90ms var(--ease);
+  }
+
+  .tabbar a:active .tab-icon {
+    transform: scale(0.9);
   }
 
   .tabbar a[aria-current='page'] {
     color: var(--accent);
   }
 
-  .tabbar a:active {
-    background: var(--surface-2);
-  }
-
-  .rail-only {
-    display: none;
-  }
-
-  .tabbar a[aria-current='page'] :global(svg) {
+  .tabbar a[aria-current='page'] .tab-icon {
     background: var(--accent-soft);
-    border-radius: 999px;
-    padding: 2px 10px;
-    box-sizing: content-box;
   }
 
-  /* Short landscape (phones on their side): every pixel of height counts, so the header and
-     tab bar fold into a rail down the left edge. */
-  @media (orientation: landscape) and (max-height: 500px) {
-    .top {
+  .toast-region {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--space-3));
+    z-index: 20;
+    transform: translateX(-50%);
+    pointer-events: none;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+  }
+
+  .toast {
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+    animation:
+      rise 220ms var(--ease),
+      fade-out 300ms 2300ms forwards;
+  }
+
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* ---------- Sidebar (desktop) and rail (phones on their side) ---------- */
+
+  @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+    .tabbar {
       display: none;
     }
-    .skip:focus {
-      left: calc(var(--rail-width) + var(--safe-left) + 8px);
-      top: 8px;
-    }
-    .tabbar {
-      top: 0;
-      right: auto;
-      width: calc(var(--rail-width) + var(--safe-left));
-      grid-template-columns: 1fr;
-      grid-auto-rows: minmax(44px, 1fr);
-      border-top: 0;
-      border-right: 1px solid var(--border);
-      padding: var(--safe-top) 0 var(--safe-bottom) var(--safe-left);
-      overflow-y: auto;
-    }
-    .tabbar a {
-      min-height: 44px;
-      font-size: 0.66rem;
-    }
-    .rail-only {
-      display: contents;
-    }
-    .rail-only a:first-child {
-      border-top: 1px solid var(--border);
-    }
-    main {
-      padding: calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom))
-        calc(var(--rail-width) + var(--safe-left) + 16px);
-    }
-    .page-title {
-      font-size: 1.1rem;
-      margin-bottom: 8px;
-    }
-    .page-title.exercise {
-      max-width: none;
-    }
-  }
 
-  @media (min-width: 900px) and (min-height: 501px) {
-    .desktop-nav {
+    .sidebar {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 10;
       display: flex;
-      gap: 4px;
-      margin-left: 16px;
+      flex-direction: column;
+      width: calc(var(--sidebar-width) + var(--safe-left));
+      padding: calc(var(--space-4) + var(--safe-top)) var(--space-3) calc(var(--space-4) + var(--safe-bottom))
+        calc(var(--space-3) + var(--safe-left));
+      border-right: 1px solid var(--hairline);
+      background: var(--bg);
+      overflow-y: auto;
+      view-transition-name: sidebar;
+      -webkit-user-select: none;
+      user-select: none;
     }
-    .desktop-nav a {
-      padding: 8px 12px;
+
+    .sidebar ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .sidebar .tools {
+      margin-top: auto;
+    }
+
+    .divided {
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--hairline);
+    }
+
+    .sidebar a {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 40px;
+      padding: 0 var(--space-3);
       border-radius: var(--radius-sm);
       color: var(--text-muted);
-      text-decoration: none;
       font-weight: 600;
       font-size: 0.95rem;
-      white-space: nowrap;
+      text-decoration: none;
+      transition: background-color 120ms;
     }
-    .desktop-nav a:hover {
-      background: var(--surface-2);
-      color: var(--text);
-    }
-    .desktop-nav .full {
-      display: none;
-    }
-    .desktop-nav a[aria-current='page'] {
+
+    .sidebar a[aria-current='page'] {
       background: var(--accent-soft);
       color: var(--accent);
     }
-    .tabbar {
+
+    .sidebar .brand {
+      gap: 10px;
+      margin-bottom: var(--space-5);
+      color: var(--text);
+      font-weight: 700;
+      font-size: var(--text-base);
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--accent-text);
+    }
+
+    main {
+      padding: 0 calc(var(--space-6) + var(--safe-right)) var(--space-6)
+        calc(var(--sidebar-width) + var(--safe-left) + var(--space-6));
+    }
+
+    .pagebar {
+      position: static;
+      margin: 0;
+      padding: var(--space-6) 0 var(--space-2);
+      background: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 0;
+    }
+
+    .pagebar h1 {
+      font-size: var(--text-xl);
+    }
+
+    .back,
+    .bar-tools {
       display: none;
     }
-    main {
-      padding-bottom: 48px;
-      padding-top: 24px;
+
+    .page {
+      padding-top: var(--space-3);
+    }
+
+    .toast-region {
+      bottom: calc(var(--space-5) + var(--safe-bottom));
+      left: calc(50% + var(--sidebar-width) / 2);
     }
   }
 
-  /* Full exercise names need ~1060px alongside the brand and tools; below that, short ones. */
-  @media (min-width: 1080px) and (min-height: 501px) {
-    .desktop-nav .full {
-      display: inline;
+  @media (min-width: 900px) and (hover: hover) {
+    .sidebar a:not([aria-current='page']):hover {
+      background: var(--surface-2);
+      color: var(--text);
     }
-    .desktop-nav .short {
+  }
+
+  /* Short landscape: every pixel of height counts, so the sidebar folds into an icon rail. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .sidebar {
+      width: calc(var(--rail-width) + var(--safe-left));
+      padding: calc(var(--space-2) + var(--safe-top)) 6px calc(var(--space-2) + var(--safe-bottom))
+        calc(6px + var(--safe-left));
+    }
+    .sidebar .brand {
       display: none;
+    }
+    .sidebar a {
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+      min-height: 44px;
+      padding: 2px 0;
+      font-size: 0.66rem;
+      text-align: center;
+    }
+    .divided {
+      margin-top: 4px;
+      padding-top: 4px;
+    }
+    main {
+      padding: 0 calc(var(--gutter) + var(--safe-right)) calc(var(--space-4) + var(--safe-bottom))
+        calc(var(--rail-width) + var(--safe-left) + var(--gutter));
+    }
+    .pagebar {
+      padding: calc(var(--space-2) + var(--safe-top)) 0 0;
+    }
+    .pagebar h1 {
+      font-size: var(--text-base);
+    }
+    .page {
+      padding-top: var(--space-2);
+    }
+    .toast-region {
+      left: calc(50% + var(--rail-width) / 2);
+    }
+    .skip:focus {
+      left: calc(var(--rail-width) + var(--safe-left) + 8px);
+    }
+  }
+
+  /* Installed desktop app drawing into the title bar area. */
+  @media (display-mode: window-controls-overlay) {
+    .titlebar {
+      display: block;
+      position: fixed;
+      z-index: 30;
+      left: env(titlebar-area-x, 0);
+      top: env(titlebar-area-y, 0);
+      width: env(titlebar-area-width, 100%);
+      height: env(titlebar-area-height, 0);
+      -webkit-app-region: drag;
+    }
+    .sidebar {
+      padding-top: calc(env(titlebar-area-height, 0px) + var(--space-3));
+    }
+    main {
+      padding-top: env(titlebar-area-height, 0px);
     }
   }
 </style>

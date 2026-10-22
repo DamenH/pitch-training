@@ -3,6 +3,9 @@
   import type { MicErrorCode } from '../audio/microphone';
   import Icon from './Icon.svelte';
 
+  /** Quiet: the microphone is a secondary action on this screen. */
+  let { quiet = false }: { quiet?: boolean } = $props();
+
   const HELP: Record<MicErrorCode, string> = {
     denied:
       'Microphone access is blocked. Allow it for this site in your browser settings (often via the icon next to the address bar), then try again.',
@@ -17,7 +20,7 @@
 
 <div class="mic" aria-live="polite">
   {#if mic.status === 'idle'}
-    <button type="button" class="btn primary block" onclick={() => mic.start()}>
+    <button type="button" class="btn block" class:primary={!quiet} onclick={() => mic.start()}>
       <Icon name="mic" /> Start microphone
     </button>
   {:else if mic.status === 'starting'}

@@ -17,8 +17,8 @@ CAPABILITIES
 - MIDI 0-127 can be played by transposing the nearest available recording;
   the on-screen keyboard shows octaves 1-7.
 - Nothing auto-plays or auto-saves when a link opens. The user presses Play
-  or Save in Reference Library -> Piano pieces. File and pasted-JSON imports
-  are on the separate Import tab, with the same preview, save and share controls.
+  or Save in Reference -> Pieces. File and pasted-JSON imports
+  are on the separate Import screen (+ in Pieces), with the same preview, save and share controls.
 
 TEXT FORMAT
 UTF-8 JSON (not JavaScript, not ABC notation), example:

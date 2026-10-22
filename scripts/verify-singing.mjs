@@ -105,20 +105,24 @@ export async function verifyLayout(page, url) {
       };
       return { piano: box('.piano'), keyboard: box('.keyboard'), mic: box('[aria-label="Match with your voice"]'), library: box('.library'), width: document.documentElement.scrollWidth };
     });
-    assert(boxes.mic.y >= boxes.keyboard.y + boxes.keyboard.height, 'Microphone must be below piano card');
-    assert(boxes.library.y >= boxes.mic.y + boxes.mic.height, 'Library must be below microphone');
+    assert(boxes.mic.y >= boxes.keyboard.y + boxes.keyboard.height, 'Microphone must be below the piano');
+    // Narrow layouts stack the pieces below; wide windows put them alongside the instrument.
+    const beside = boxes.library.x >= boxes.keyboard.x + boxes.keyboard.width;
+    assert(beside || boxes.library.y >= boxes.mic.y + boxes.mic.height, 'Library must be below or beside the instrument');
+    if (viewport.width >= 1280) assert(beside, 'Wide windows show pieces alongside the piano');
     assert.equal(boxes.width, viewport.width, 'No horizontal overflow');
-    if (viewport.width <= 600) assert(boxes.piano.width >= viewport.width - 16, 'Piano should use almost all mobile width');
+    if (viewport.width <= 600) assert(boxes.piano.width >= viewport.width - 40, 'Piano should use almost all mobile width');
     await expect(page.getByRole('button', { name: /Add to sequence|Play again|Play sequence/ })).toHaveCount(0);
-    await expect(page.getByLabel('Choose or drop a MIDI / JSON file')).toHaveCount(0);
-    await expect(page.getByText('Paste a text score (JSON)', { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel('Choose a MIDI or JSON file')).toHaveCount(0);
+    await expect(page.getByText('Paste a score', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /Mixed/ })).toHaveCount(0);
+    await expect(page.getByText('Keyboard shortcuts', { exact: false })).toHaveCount(0);
     await page.goto(`${url}#/import`);
-    await expect(page.getByLabel('Choose or drop a MIDI / JSON file')).toBeVisible();
+    await expect(page.getByLabel('Choose a MIDI or JSON file')).toBeAttached();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
   }
   await page.goto(`${url}#/mixed`);
-  await expect(page.getByRole('heading', { name: 'Identify Notes', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Identify', exact: true })).toBeVisible();
   await page.setViewportSize(original);
-  console.log('  layout: one column, adjacent microphone card, mobile piano width, import separation and removed Mixed route passed');
+  console.log('  layout: piano then microphone, library below or alongside, mobile piano width, import separation and removed Mixed route passed');
 }

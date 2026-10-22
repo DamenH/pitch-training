@@ -10,11 +10,12 @@
     | 'play'
     | 'stop'
     | 'plus'
-    | 'x'
     | 'arrow-right'
-    | 'up'
-    | 'down'
-    | 'dot';
+    | 'back'
+    | 'share'
+    | 'download'
+    | 'upload'
+    | 'trash';
 </script>
 
 <script lang="ts">
@@ -63,15 +64,17 @@
     <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none" />
   {:else if name === 'plus'}
     <path d="M12 5v14M5 12h14" />
-  {:else if name === 'x'}
-    <path d="M6 6l12 12M18 6 6 18" />
   {:else if name === 'arrow-right'}
     <path d="M5 12h14M13 6l6 6-6 6" />
-  {:else if name === 'up'}
-    <path d="M12 19V5M6 11l6-6 6 6" />
-  {:else if name === 'down'}
-    <path d="M12 5v14M6 13l6 6 6-6" />
-  {:else if name === 'dot'}
-    <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none" />
+  {:else if name === 'back'}
+    <path d="m15 5-7 7 7 7" />
+  {:else if name === 'share'}
+    <path d="M12 3v12M7 8l5-5 5 5" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+  {:else if name === 'download'}
+    <path d="M12 3v12M7 10l5 5 5-5" /><path d="M5 21h14" />
+  {:else if name === 'upload'}
+    <path d="M12 15V3M7 8l5-5 5 5" /><path d="M5 21h14" />
+  {:else if name === 'trash'}
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
   {/if}
 </svg>

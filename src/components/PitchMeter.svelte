@@ -3,6 +3,7 @@
   import { midiToFrequency, noteName, spokenNoteName, type Spelling } from '../domain/music';
   import type { LiveState } from '../domain/pitch';
   import type { ScoringPolicy } from '../domain/settings';
+  import { signedCents } from '../lib/format';
 
   let {
     live,
@@ -48,11 +49,6 @@
     }
   });
 
-  function signed(n: number): string {
-    const r = Math.round(n);
-    return r > 0 ? `+${r}` : `${r}`;
-  }
-
   function describeOffset(cents: number): string {
     const abs = Math.abs(Math.round(cents));
     if (abs < 100) return `${abs}¢`;
@@ -83,13 +79,13 @@
       <span class="label">Detected</span>
       <span class="note">{reading ? noteName(Math.round(reading.midi), spelling) : '—'}</span>
       <span class="sub">
-        {#if reading}{signed(centsToNearest)}¢ · {reading.frequency.toFixed(1)} Hz{:else}&nbsp;{/if}
+        {#if reading}{signedCents(centsToNearest)} · {reading.frequency.toFixed(1)} Hz{:else}&nbsp;{/if}
       </span>
     </div>
     <div class="hint" data-dir={direction ?? 'none'}>
       {#if direction === 'on'}
         <span class="arrow" aria-hidden="true">●</span> On target
-        <span class="sub">{signed(cmp!.cents)}¢</span>
+        <span class="sub">{signedCents(cmp!.cents)}</span>
       {:else if direction === 'higher'}
         <span class="arrow" aria-hidden="true">▲</span> Sing higher
         <span class="sub">{describeOffset(cmp!.cents)} below</span>
@@ -114,8 +110,8 @@
         <div class="needle" class:edge={offTheScale} style:left={`${50 + position * 50}%`}></div>
       {/if}
     </div>
-    <div class="scale muted small" aria-hidden="true">
-      <span>−6 st (lower)</span><span>target</span><span>+6 st (higher)</span>
+    <div class="scale" aria-hidden="true">
+      <span>−6</span><span>target</span><span>+6</span>
     </div>
   {/if}
 
@@ -141,7 +137,6 @@
         {:else}—{/if}
       </dd>
     </dl>
-    <p class="small muted">Detected octave may be wrong for low or breathy voices.</p>
   </details>
 
   <p class="visually-hidden" aria-live="polite">{announcement}</p>
@@ -170,7 +165,8 @@
   }
 
   .label {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
@@ -184,7 +180,7 @@
   }
 
   .sub {
-    font-size: 0.85rem;
+    font-size: var(--text-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     font-weight: 400;
@@ -211,8 +207,8 @@
 
   .track {
     position: relative;
-    height: 40px;
-    border-radius: var(--radius-sm);
+    height: 36px;
+    border-radius: 999px;
     background: var(--surface-2);
     overflow: hidden;
   }
@@ -224,31 +220,31 @@
     left: 50%;
     transform: translateX(-50%);
     background: var(--good-soft);
-    border-left: 1px dashed var(--good);
-    border-right: 1px dashed var(--good);
     min-width: 4px;
   }
 
   .tick {
     position: absolute;
-    top: 30%;
-    bottom: 30%;
+    top: 40%;
+    bottom: 40%;
     width: 1px;
-    background: var(--border);
+    background: var(--text-muted);
+    opacity: 0.35;
   }
 
   .tick.centre {
-    top: 0;
-    bottom: 0;
+    top: 20%;
+    bottom: 20%;
     width: 2px;
     margin-left: -1px;
     background: var(--good);
+    opacity: 1;
   }
 
   .needle {
     position: absolute;
-    top: 4px;
-    bottom: 4px;
+    top: 6px;
+    bottom: 6px;
     width: 6px;
     margin-left: -3px;
     border-radius: 3px;
@@ -267,7 +263,11 @@
   .scale {
     display: flex;
     justify-content: space-between;
-    margin-top: -6px;
+    margin-top: -4px;
+    padding-inline: var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .status {
@@ -282,21 +282,12 @@
     color: var(--text);
   }
 
-  .diag summary {
-    cursor: pointer;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    min-height: 32px;
-    display: flex;
-    align-items: center;
-  }
-
   .diag dl {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px 12px;
-    margin: 8px 0;
-    font-size: 0.9rem;
+    margin: var(--space-2) 0;
+    font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
   }
 

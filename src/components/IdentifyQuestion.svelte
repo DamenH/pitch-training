@@ -5,6 +5,7 @@
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { playMidi, playMidiPoly } from '../lib/playback';
+  import { haptic, onPress } from '../lib/native';
   import { pitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from './Piano.svelte';
   import Icon from './Icon.svelte';
@@ -51,6 +52,7 @@
       return;
     }
     result = evaluateIdentify(question, selected);
+    haptic(result.correct ? 'success' : 'error');
     onresult(result, Date.now() - (firstPlayAt ?? question.createdAt));
     // On small screens the verdict can land below the fold; bring it into view, then move focus.
     void tick().then(() => {
@@ -102,10 +104,10 @@
 <svelte:window {onkeydown} />
 
 <section class="stack identify" aria-label="Hear and identify">
-  <div class="card prompt">
-    <button type="button" class="btn primary play" onclick={play} disabled={!canPlay}>
-      <Icon name="play" />
-      {#if plays === 0}Play note{:else if canPlay}Replay note{:else}Played (single play){/if}
+  <div class="prompt">
+    <button type="button" class="play" {...onPress(play)} disabled={!canPlay} title="Play note (R)">
+      <span class="disc"><Icon name="play" size={30} /></span>
+      <span>{#if plays === 0}Play note{:else if canPlay}Replay note{:else}Played once{/if}</span>
     </button>
   </div>
 
@@ -119,25 +121,18 @@
     onpress={pressKey}
   />
 
-  {#if result}
-    <p class="small muted">Play the piano keys to compare notes in octave {midiToOctave(question.targetMidi)}.</p>
-  {/if}
-
   {#if notice && !result}
     <p class="notice warn" role="status">{notice}</p>
   {/if}
 
   <div aria-live="polite" bind:this={feedback}>
     {#if result}
-      <div class="notice" class:good={result.correct} class:bad={!result.correct}>
-        <p class="verdict">
-          <span aria-hidden="true">{result.correct ? '✓' : '✗'}</span>
-          {result.correct ? 'Correct' : 'Not quite'}
-        </p>
+      <div class="notice verdict" class:good={result.correct} class:bad={!result.correct}>
+        <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
         <p class="detail">
-          The note was <strong>{pitchClassName(question.targetPitchClass, s.spelling)}</strong>
-          <span class="muted">(played as {noteName(question.targetMidi, s.spelling)})</span>.
-          You chose <strong>{pitchClassName(result.answer, s.spelling)}</strong>.
+          It was <strong>{pitchClassName(question.targetPitchClass, s.spelling)}</strong>
+          <span class="muted">({noteName(question.targetMidi, s.spelling)})</span>{#if !result.correct}.
+            You chose <strong>{pitchClassName(result.answer, s.spelling)}</strong>{/if}.
         </p>
       </div>
     {/if}
@@ -146,41 +141,86 @@
   <div class="action-bar">
     {#if result}
       {#if !result.correct}
-        <button type="button" class="btn" onclick={playAnswer}>Hear your note</button>
+        <button type="button" class="btn" {...onPress(playAnswer)}>Hear your note</button>
       {/if}
-      <button type="button" class="btn primary" bind:this={nextButton} onclick={onnext}>
+      <button type="button" class="btn primary" bind:this={nextButton} onclick={onnext} title="Next note (Enter)">
         Next note <Icon name="arrow-right" />
       </button>
     {:else}
-      <button type="button" class="btn primary" onclick={submit} disabled={selected === null || plays === 0}>
+      <button type="button" class="btn primary" onclick={submit} disabled={selected === null || plays === 0} title="Submit (Enter)">
         Submit answer
       </button>
     {/if}
   </div>
-
-  <p class="kbd-hint muted small">
-    Keyboard: <kbd>R</kbd> or <kbd>Space</kbd> play · <kbd>C</kbd>–<kbd>B</kbd>
-    {result ? 'play a comparison note' : 'choose a note'} ·
-    <kbd>Shift</kbd>+letter for sharp · <kbd>Enter</kbd> submit / next
-  </p>
 </section>
 
 <style>
   .prompt {
     display: flex;
     justify-content: center;
+    padding-block: var(--space-2);
   }
-  .verdict {
-    font-size: 1.2rem;
-    font-weight: 700;
-    margin: 0 0 4px;
+  .play {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: var(--text-sm);
   }
-  .detail {
-    margin: 0;
+  .disc {
+    display: grid;
+    place-items: center;
+    width: 80px;
+    height: 80px;
+    padding-left: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-text);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 35%, transparent);
+    transition:
+      transform 100ms var(--ease),
+      filter 120ms;
+  }
+  .play:active:not(:disabled) .disc {
+    transform: scale(0.93);
+    filter: brightness(0.92);
+  }
+  .play:disabled {
+    color: var(--text-muted);
+  }
+  .play:disabled .disc {
+    background: var(--surface-3);
+    color: var(--text-muted);
+    box-shadow: none;
+  }
+  @media (hover: hover) {
+    .play:hover:not(:disabled) .disc {
+      filter: brightness(1.08);
+    }
+  }
+  .play:focus-visible {
+    outline: none;
+  }
+  .play:focus-visible .disc {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
   }
 
   @media (orientation: landscape) and (max-height: 500px) {
-    .prompt { padding-block: 8px; }
-    .identify { --piano-h: 170px; }
+    .prompt {
+      padding-block: 0;
+    }
+    .play {
+      flex-direction: row;
+    }
+    .disc {
+      width: 52px;
+      height: 52px;
+    }
   }
 </style>

@@ -4,6 +4,14 @@ import midiPackage from '@tonejs/midi';
 import { readFile } from 'node:fs/promises';
 const { Midi } = midiPackage;
 
+/** Share copies the link on desktop; read it back from the clipboard. */
+async function copyLink(page) {
+  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).not.toBe('');
+  return page.evaluate(() => navigator.clipboard.readText());
+}
+
 export async function verifyLibrary(context, page, url) {
   await context.setOffline(false);
   await page.goto(`${url}#/reference`);
@@ -56,12 +64,12 @@ export async function verifyLibrary(context, page, url) {
 
   const score = { version: 1, title: 'Saved chord 🎹', notes: [60, 64, 67].map((midi) => ({ midi, time: 0, duration: 2, velocity: 0.7 })) };
   await page.goto(`${url}#/import`);
-  await page.getByText('Paste a text score (JSON)', { exact: true }).click();
+  await page.getByText('Paste a score', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Score JSON' }).fill(JSON.stringify(score));
-  await page.getByRole('button', { name: 'Load text score', exact: true }).click();
+  await page.getByRole('button', { name: 'Load score', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue(score.title);
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved to your library', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Play piece', exact: true }).click();
   await expect.poll(async () => Number(await page.getByRole('progressbar', { name: 'Piece playback progress' }).getAttribute('value'))).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
@@ -71,18 +79,17 @@ export async function verifyLibrary(context, page, url) {
   await expect(page.locator('.piano .playing')).toHaveCount(3);
   await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
   await expect(page.locator('.piano .playing')).toHaveCount(0);
-  await page.getByText('Download piece', { exact: true }).click();
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export score', exact: true }).click();
+  await page.getByRole('button', { name: 'JSON score', exact: true }).click();
   const download = await downloadPromise;
   assert(download.suggestedFilename().endsWith('.json'));
 
-  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
-  const shared = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
+  const shared = await copyLink(page);
   assert(new URLSearchParams(new URL(shared).hash.split('?')[1]).has('p'));
   assert(shared.length < url.length + 120);
   await page.goto(shared);
-  await expect(page.getByText('Loaded from link.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Opened from link', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Play piece', exact: true })).toBeVisible();
   await expect(page.locator('.piano .playing')).toHaveCount(0);
   // Existing self-contained JSON links remain readable.
@@ -95,18 +102,19 @@ export async function verifyLibrary(context, page, url) {
   for (const note of [60, 64, 67]) track.addNote({ midi: note, time: 0, duration: 1 });
   const bytes = Buffer.from(midi.toArray());
   await page.goto(`${url}#/import`);
-  const fileInput = page.getByLabel('Choose or drop a MIDI / JSON file');
+  const fileInput = page.getByLabel('Choose a MIDI or JSON file');
   await fileInput.setInputFiles({ name: 'chord.mid', mimeType: 'audio/midi', buffer: bytes });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Imported MIDI chord');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved to your library', { exact: true })).toBeVisible();
   await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Imported MIDI chord', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?midi=${bytes.toString('base64url')}`);
-  await expect(page.getByText('Loaded from link.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Opened from link', { exact: false })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Imported MIDI chord');
 
   await page.goto(`${url}#/import`);
+  await page.locator('.drop-zone').waitFor();
   await page.evaluate((score) => {
     const transfer = new DataTransfer();
     transfer.items.add(new File([JSON.stringify(score)], 'dropped.json', { type: 'application/json' }));
@@ -114,7 +122,7 @@ export async function verifyLibrary(context, page, url) {
   }, { ...score, title: 'Dropped JSON' });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Dropped JSON');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved to your library', { exact: true })).toBeVisible();
   await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Dropped JSON', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?score=INVALID!`);
@@ -134,7 +142,9 @@ export async function verifyLibrary(context, page, url) {
   const sibling = await context.newPage();
   const otherUrl = url.replace(/\/(standard|portable)\/$/, url.includes('/standard/') ? '/portable/' : '/standard/');
   await sibling.goto(`${otherUrl}#/reference`);
-  await expect(sibling.getByText('No saved pieces yet.', { exact: false })).toBeVisible();
+  await expect(sibling.getByRole('button', { name: 'Load C major scale', exact: true })).toBeVisible();
+  await expect(sibling.getByRole('heading', { name: 'Saved', exact: true })).toHaveCount(0);
+  await expect(sibling.getByRole('button', { name: 'Imported MIDI chord', exact: true })).toHaveCount(0);
   await sibling.goto(`${otherUrl}#/settings`);
   await expect(sibling.getByLabel('Lowest octave')).toHaveValue('3');
   await sibling.close();
@@ -212,42 +222,37 @@ async function verifyExamples(context, page, url) {
     'Ode to Joy — opening theme', 'Twinkle, Twinkle, Little Star', 'Frère Jacques — two-voice round',
   ];
   for (const title of examples) {
-    const browse = page.getByText('Browse examples', { exact: true });
-    if (!await page.getByRole('button', { name: `Load ${title}`, exact: true }).isVisible()) await browse.click();
     await page.getByRole('button', { name: `Load ${title}`, exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue(title);
     await page.getByRole('button', { name: 'Play piece', exact: true }).click();
     await expect.poll(() => page.locator('.piano .playing').count()).toBeGreaterThan(0);
     await page.getByRole('button', { name: 'Stop piece', exact: true }).click();
   }
-  await page.getByText('Download piece', { exact: true }).click();
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
   const downloaded = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download MIDI', exact: true }).click();
+  await page.getByRole('button', { name: 'MIDI file', exact: true }).click();
   const download = await downloaded;
   assert(download.suggestedFilename().endsWith('.mid'));
   const bytes = await readFile(await download.path());
   const midi = new Midi(bytes);
   assert.equal(midi.tracks.reduce((sum, track) => sum + track.notes.length, 0), 64);
   await page.goto(`${url}#/import`);
-  await page.getByLabel('Choose or drop a MIDI / JSON file').setInputFiles({ name: 'round.mid', mimeType: 'audio/midi', buffer: bytes });
+  await page.getByLabel('Choose a MIDI or JSON file').setInputFiles({ name: 'round.mid', mimeType: 'audio/midi', buffer: bytes });
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Frère Jacques — two-voice round');
   await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-  await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved to your library', { exact: true })).toBeVisible();
   await page.goto(`${url}#/reference`);
   await expect(page.getByRole('button', { name: 'Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete Frère Jacques — two-voice round', exact: true }).click();
-  await page.getByText('Browse examples', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Load Frère Jacques — two-voice round', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?example=chromatic-scale`);
   await expect(page.getByRole('textbox', { name: 'Piece title', exact: true })).toHaveValue('Chromatic scale');
-  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
-  const exampleLink = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
+  const exampleLink = await copyLink(page);
   assert.equal(new URL(exampleLink).hash, '#/reference?example=chromatic-scale');
   await page.getByRole('textbox', { name: 'Piece title', exact: true }).fill('My chromatic exercise');
-  await page.getByRole('button', { name: 'Copy piece link', exact: true }).click();
-  const customLink = await page.getByRole('textbox', { name: 'Piece link', exact: true }).inputValue();
+  const customLink = await copyLink(page);
   assert(new URL(customLink).hash.startsWith('#/reference?p='));
   await expect(page.getByRole('button', { name: 'Play piece', exact: true })).toBeVisible();
   await page.goto(`${url}#/reference?example=missing`);
@@ -275,10 +280,10 @@ export async function verifyStorageFallback(browser, origin) {
     await expect(page.getByLabel('Lowest octave')).toHaveValue('5');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('pitch-training:settings/v1')).playbackOctaveMin), 2);
     await page.goto(`${origin}/standard/#/import`);
-    await page.getByText('Paste a text score (JSON)', { exact: true }).click();
-    await page.getByRole('button', { name: 'Load text score', exact: true }).click();
+    await page.getByText('Paste a score', { exact: true }).click();
+    await page.getByRole('button', { name: 'Load score', exact: true }).click();
     await page.getByRole('button', { name: 'Save to library', exact: true }).click();
-    await expect(page.getByText('Saved on this device.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Saved to your library', { exact: true })).toBeVisible();
     await page.goto(`${origin}/standard/#/reference`);
     await expect(page.getByRole('button', { name: 'C major chord', exact: true })).toBeVisible();
     await page.reload();

@@ -2,9 +2,11 @@
   --bg: #f7f6f2;
   --surface: #ffffff;
   --surface-2: #efede7;
-  --border: #d9d6cd;
+  --surface-3: #e6e3db;
+  --border: #dedad1;
+  --hairline: rgb(29 30 32 / 0.09);
   --text: #1d1e20;
-  --text-muted: #5b5d63;
+  --text-muted: #6a6c72;
   --accent: #2f5d50;
   --accent-text: #ffffff;
   --accent-soft: #dfeae5;
@@ -21,16 +23,33 @@
   /* Selected black key: lighter than the accent so it stands apart from unselected black keys. */
   --key-black-selected: #6fb3a0;
   --key-black-selected-text: #0f1a16;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.05);
+  --scrim: rgb(20 20 22 / 0.32);
+  /* The chosen option in a segmented control. */
+  --segment-on: #ffffff;
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --gap: 16px;
-  --header-height: 52px;
-  --nav-height: 64px;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-display: clamp(3.5rem, 18vw, 5.5rem);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --gutter: 16px;
+  --bar-height: 52px;
+  --nav-height: 60px;
   --rail-width: 76px;
+  --sidebar-width: 232px;
   --tap: 48px;
-  --content-max: 960px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -59,10 +78,12 @@
     color-scheme: dark;
     --bg: #16171a;
     --surface: #1f2024;
-    --surface-2: #2a2b30;
+    --surface-2: #26272c;
+    --surface-3: #303137;
     --border: #3a3c42;
+    --hairline: rgb(236 235 231 / 0.1);
     --text: #ecebe7;
-    --text-muted: #a5a7ad;
+    --text-muted: #9fa1a8;
     --accent: #7cc4ad;
     --accent-text: #0f1a16;
     --accent-soft: #23352f;
@@ -78,7 +99,8 @@
     --key-black-text: #e6e6e6;
     --key-black-selected: #7cc4ad;
     --key-black-selected-text: #0f1a16;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --scrim: rgb(0 0 0 / 0.5);
+    --segment-on: #43454c;
   }
 }
 
@@ -99,21 +121,23 @@ body {
   overflow-x: hidden;
 }
 
-/* Keep scrolled-to and focused content clear of the sticky header, tab bar and action bar. */
-html {
-  scroll-padding-top: calc(var(--header-height) + var(--safe-top));
-  scroll-padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 76px);
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-  html {
-    scroll-padding: 0;
+/* Installed app: no rubber-banding past the edges and no pull-to-refresh. */
+@media (display-mode: standalone), (display-mode: window-controls-overlay) {
+  html,
+  body {
+    overscroll-behavior: none;
   }
 }
 
-@media (min-width: 900px) and (min-height: 501px) {
+/* Keep scrolled-to and focused content clear of the sticky bar, tab bar and action bar. */
+html {
+  scroll-padding-top: calc(var(--bar-height) + var(--safe-top));
+  scroll-padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 76px);
+}
+
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
   html {
-    scroll-padding-bottom: 0;
+    scroll-padding: 0;
   }
 }
 
@@ -121,19 +145,19 @@ h1,
 h2,
 h3 {
   line-height: 1.2;
-  margin: 0 0 0.5em;
+  margin: 0;
 }
 
 h1 {
-  font-size: 1.35rem;
+  font-size: var(--text-lg);
 }
 
 h2 {
-  font-size: 1.1rem;
+  font-size: var(--text-base);
 }
 
 p {
-  margin: 0 0 0.75em;
+  margin: 0;
 }
 
 a {
@@ -147,19 +171,25 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
 
 button {
-  cursor: pointer;
   touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
-button:disabled {
-  cursor: not-allowed;
+/* Like native apps, controls keep the arrow cursor; links keep the hand. */
+button {
+  cursor: default;
 }
+
+/* ---------- Buttons ---------- */
 
 .btn {
   display: inline-flex;
@@ -169,60 +199,72 @@ button:disabled {
   min-height: var(--tap);
   padding: 0 1.1em;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 0;
+  background: var(--surface-2);
   font-weight: 600;
   text-decoration: none;
   color: var(--text);
-  user-select: none;
+  transition:
+    transform 90ms var(--ease),
+    background-color 120ms,
+    filter 120ms;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  background: var(--surface-3);
+}
+
+.btn:disabled {
+  opacity: 0.45;
 }
 
 /* Hover styles only where hover exists; on touch screens they stick after a tap. */
 @media (hover: hover) {
   .btn:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+  .btn.primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+  .btn.plain:hover:not(:disabled),
+  .icon-btn:hover:not(:disabled) {
     background: var(--surface-2);
   }
 }
 
-.btn:disabled {
-  opacity: 0.5;
-}
-
 .btn.primary {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--accent-text);
 }
 
-@media (hover: hover) {
-  .btn.primary:hover:not(:disabled) {
-    filter: brightness(1.08);
-    background: var(--accent);
-  }
-}
-
 .btn.primary:active:not(:disabled) {
+  background: var(--accent);
   filter: brightness(0.92);
 }
 
-.btn:not(.primary):active:not(:disabled) {
-  background: var(--surface-2);
+.btn.plain {
+  background: transparent;
+  color: var(--accent);
 }
 
 .btn.danger {
   color: var(--bad);
-  border-color: currentColor;
 }
 
 .btn.small {
-  min-height: var(--tap);
-  padding: 0 0.8em;
-  font-size: 0.9rem;
+  min-height: 40px;
+  padding: 0 0.9em;
+  font-size: var(--text-sm);
 }
 
 @media (pointer: fine) {
+  .btn {
+    min-height: 40px;
+  }
   .btn.small {
-    min-height: 36px;
+    min-height: 32px;
   }
 }
 
@@ -230,12 +272,34 @@ button:disabled {
   width: 100%;
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--gap);
-  box-shadow: var(--shadow);
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    transform 90ms var(--ease),
+    background-color 120ms;
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+  background: var(--surface-2);
+}
+
+@media (pointer: fine) {
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 /*
@@ -247,53 +311,44 @@ button:disabled {
   bottom: calc(var(--nav-height) + var(--safe-bottom));
   z-index: 5;
   display: flex;
-  gap: 8px;
-  padding: 12px 0 8px;
-  margin-block: -12px -8px;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-2);
+  margin-block: calc(-1 * var(--space-3)) calc(-1 * var(--space-2));
   background: linear-gradient(to bottom, transparent, var(--bg) 12px);
 }
 
 .action-bar .btn {
   flex: 1 1 0;
   min-width: 0;
+  min-height: 52px;
   white-space: nowrap;
   padding-inline: 0.75em;
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
   .action-bar {
     position: static;
-    padding: 0;
-    margin: 0;
-    background: none;
-  }
-}
-
-@media (min-width: 900px) and (min-height: 501px) {
-  .action-bar {
-    position: static;
-    flex-wrap: wrap;
-    justify-content: flex-end;
     padding: 0;
     margin: 0;
     background: none;
   }
   .action-bar .btn {
-    flex: 1 1 140px;
-    max-width: 320px;
+    min-height: 44px;
   }
 }
+
+/* ---------- Layout helpers ---------- */
 
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: var(--space-4);
 }
 
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
@@ -302,7 +357,7 @@ button:disabled {
 }
 
 .small {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
 .visually-hidden {
@@ -317,65 +372,316 @@ button:disabled {
   border: 0;
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  padding: 0.15em 0.6em;
-  border-radius: 999px;
-  font-size: 0.8rem;
+/* Small uppercase label above a group of content. */
+.eyebrow {
+  font-size: var(--text-xs);
   font-weight: 600;
-  background: var(--surface-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
+/* A quiet raised surface, used sparingly where grouping matters. */
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+/* ---------- Notices ---------- */
+
 .notice {
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  border: 1px solid var(--border);
+  padding: var(--space-3) 14px;
   background: var(--surface-2);
 }
 
 .notice.good {
   background: var(--good-soft);
-  border-color: var(--good);
 }
 
 .notice.bad {
   background: var(--bad-soft);
-  border-color: var(--bad);
 }
 
 .notice.warn {
   background: var(--warn-soft);
-  border-color: var(--warn);
 }
 
-/* Keyboard shortcut hints only make sense with a physical keyboard. */
-.kbd-hint {
-  display: none;
+/* Result of an answer: appears with a short rise so it reads as the app responding. */
+.verdict {
+  animation: rise 220ms var(--ease);
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .kbd-hint {
-    display: block;
+.verdict .title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-1);
+}
+
+.verdict.good .title {
+  color: var(--good);
+}
+
+.verdict.bad .title {
+  color: var(--bad);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
 
-kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8em;
-  padding: 0.05em 0.4em;
+/* ---------- Form controls ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.field > span:first-child,
+.field > legend {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0;
+  font-weight: 600;
+}
+
+.input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
+  color: var(--text);
+}
+
+textarea {
+  padding: 10px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+}
+
+@media (pointer: fine) {
+  .input,
+  select {
+    min-height: 36px;
+  }
+}
+
+input[type='range'] {
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+/* iOS / Android style on-off switch on a native checkbox. */
+input.switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 50px;
+  height: 30px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  transition: background-color 160ms;
+}
+
+input.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 180ms var(--ease);
+}
+
+input.switch:checked {
+  background: var(--accent);
+}
+
+input.switch:checked::after {
+  transform: translateX(20px);
+}
+
+/* Segmented control on native radios: one choice from a few options. */
+.segmented {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.segmented label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 var(--space-2);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-align: center;
+  color: var(--text-muted);
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color 140ms;
+}
+
+.segmented label.checked {
+  background: var(--segment-on);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.segmented input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+@media (pointer: fine) {
+  .segmented label {
+    min-height: 32px;
+  }
+}
+
+/* Title and supporting line at the top of a Sheet. */
+.sheet-title {
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.sheet-text {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.sheet-title:last-of-type,
+.sheet-text {
+  margin-bottom: var(--space-2);
+}
+
+/* ---------- Disclosures ---------- */
+
+summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms;
+}
+
+details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* ---------- Motion ---------- */
+
+/* Page changes: a short fade; screens pushed from the toolbar slide over. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 160ms;
+  animation-timing-function: var(--ease);
+}
+
+:root[data-nav='push']::view-transition-new(root) {
+  animation-name: slide-in;
+  animation-duration: 260ms;
+}
+
+:root[data-nav='pop']::view-transition-old(root) {
+  animation-name: slide-out;
+  animation-duration: 220ms;
+}
+
+:root[data-nav='pop']::view-transition-new(root) {
+  animation: none;
+}
+
+:root[data-nav='pop']::view-transition-old(root) {
+  z-index: 1;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(24%);
+    opacity: 0;
+  }
+}
+
+@keyframes slide-out {
+  to {
+    transform: translateX(24%);
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after {
+  *::after,
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

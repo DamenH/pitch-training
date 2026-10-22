@@ -1,3 +1,8 @@
+<script lang="ts" module>
+  // The chosen octave survives switching tabs.
+  let lastOctave = 4;
+</script>
+
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import {
@@ -20,7 +25,7 @@
   import PitchMeter from '../components/PitchMeter.svelte';
 
   const s = $derived(settings.value);
-  let octave = $state(4);
+  let octave = $state(lastOctave);
   let selectedMidi = $state<number | null>(null);
   let held = $state<number[]>([]);
   let scoreNotes = $state<number[]>([]);
@@ -57,7 +62,7 @@
 
   function setOctave(o: number) {
     releaseKeys();
-    octave = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, o));
+    octave = lastOctave = Math.max(OCTAVE_MIN, Math.min(OCTAVE_MAX, o));
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -94,143 +99,122 @@
 
 <svelte:window {onkeydown} {onkeyup} onblur={releaseKeys} />
 
-<div class="layout">
-  <section class="card stack keyboard" aria-labelledby="kb-heading">
-    <h2 id="kb-heading" class="visually-hidden">Keyboard</h2>
-
-    <div class="selected" aria-live="polite">
-      {#if selectedMidi !== null}
-        <span class="note">{noteName(selectedMidi, s.spelling)}</span>
-        <span class="freq">{midiToFrequency(selectedMidi).toFixed(2)} Hz</span>
-      {:else}
-        <span class="note muted">—</span>
-        <span class="freq muted">&nbsp;</span>
-      {/if}
-    </div>
-
-    <fieldset class="octaves">
-      <legend>Octave</legend>
-      <div class="seg">
-        {#each octaves as o (o)}
-          <label class:checked={octave === o}>
-            <input type="radio" name="octave" value={o} checked={octave === o} onchange={() => setOctave(o)} />
-            <span>{o}</span>
-          </label>
-        {/each}
+<div class="reference">
+  <div class="stack instrument">
+    <section class="stack keyboard" aria-labelledby="kb-heading">
+      <h2 id="kb-heading" class="visually-hidden">Keyboard</h2>
+      <div class="toolbar">
+        <p class="readout" aria-live="polite">
+          {#if selectedMidi !== null}
+            <span class="note">{noteName(selectedMidi, s.spelling)}</span>
+            <span class="freq">{midiToFrequency(selectedMidi).toFixed(2)} Hz</span>
+          {/if}
+        </p>
+        <fieldset class="octaves">
+          <legend class="visually-hidden">Octave</legend>
+          <div class="segmented">
+            {#each octaves as o (o)}
+              <label class:checked={octave === o}>
+                <input type="radio" name="octave" value={o} checked={octave === o} onchange={() => setOctave(o)} />
+                <span>{o}</span>
+              </label>
+            {/each}
+          </div>
+        </fieldset>
       </div>
-    </fieldset>
+      <Piano {octave} selected={selectedPc} spelling={s.spelling} onpress={press}
+        onrelease={(pc) => releaseMidi(noteToMidi(pc, octave))} {active} />
+    </section>
 
-    <Piano {octave} selected={selectedPc} spelling={s.spelling} onpress={press}
-      onrelease={(pc) => releaseMidi(noteToMidi(pc, octave))} {active} />
+    <section class="stack voice" aria-label="Match with your voice">
+      <MicPanel quiet />
+      {#if mic.status === 'running'}
+        <PitchMeter live={mic.live} targetMidi={selectedMidi} policy={s.scoringPolicy}
+          toleranceCents={s.toleranceCents} spelling={s.spelling} />
+      {/if}
+    </section>
+  </div>
 
-    <details class="kbd-hint muted small"><summary>Keyboard shortcuts</summary><p>
-      Keyboard: <kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd><kbd>F</kbd><kbd>T</kbd><kbd>G</kbd><kbd
-        >Y</kbd
-      ><kbd>H</kbd><kbd>U</kbd><kbd>J</kbd> play C to B · <kbd>Z</kbd>/<kbd>X</kbd> octave down/up
-    </p></details>
-  </section>
-
-  <section class="card stack voice-card" aria-label="Match with your voice">
-    <MicPanel />
-    {#if mic.status === 'running'}
-      <PitchMeter live={mic.live} targetMidi={selectedMidi} policy={s.scoringPolicy}
-        toleranceCents={s.toleranceCents} spelling={s.spelling} />
-    {/if}
-    <p class="muted small">Play a piano key, then match it with your voice.</p>
-  </section>
+  <ScoreLibrary onnotes={(notes) => { scoreNotes = notes; }} onplay={releaseKeys} />
 </div>
 
-<ScoreLibrary onnotes={(notes) => { scoreNotes = notes; }} onplay={releaseKeys} />
-
 <style>
-  .layout {
+  .reference {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  .instrument {
+    gap: var(--space-5);
+    min-width: 0;
+  }
+
+  .keyboard {
+    gap: var(--space-3);
+  }
+
+  /* Phones: readout above the octave picker, its height reserved so the keys never move. */
+  .toolbar {
     display: flex;
     flex-direction: column;
-    gap: var(--gap);
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
   }
-  .voice-card p { margin: 0; }
-  .kbd-hint summary { cursor: pointer; }
-  .kbd-hint p { margin-block: 8px 0; }
 
-  .selected {
+  @container (min-width: 520px) {
+    .toolbar {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+  }
+
+  .readout {
     display: flex;
     align-items: baseline;
-    justify-content: center;
-    gap: 12px;
-    min-height: 2rem;
+    gap: var(--space-2);
+    min-height: 2.25rem;
   }
 
   .note {
-    font-size: 1.8rem;
+    font-size: var(--text-xl);
     font-weight: 800;
     line-height: 1;
   }
 
   .freq {
+    font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
   }
 
   .octaves {
+    flex: 0 1 300px;
     border: 0;
     padding: 0;
     margin: 0;
     min-width: 0;
   }
 
-  .octaves legend {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin-bottom: 6px;
+  .octaves label {
+    font-variant-numeric: tabular-nums;
   }
 
-  .seg {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
+  .voice {
+    width: 100%;
+    max-width: 720px;
+    margin-inline: auto;
+    gap: var(--space-3);
   }
 
-  .seg label {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
-    font-weight: 700;
-    cursor: pointer;
-    border-left: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  .seg label:first-child {
-    border-left: 0;
-  }
-
-  .seg label.checked {
-    background: var(--accent);
-    color: var(--accent-text);
-  }
-
-  .seg label:has(input:focus-visible) {
-    outline: 3px solid var(--focus);
-    outline-offset: -3px;
-  }
-
-  .seg input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    margin: 0;
-    cursor: inherit;
-  }
-
-  .keyboard { gap: 10px; }
-  .keyboard :global(.piano) { --piano-h: clamp(150px, 42vw, 220px); }
-  @media (max-width: 600px) {
-    .keyboard { margin-inline: -12px; padding: 12px 0 0; overflow: hidden; }
-    .selected, .octaves, .kbd-hint { margin-inline: 12px; }
-    .kbd-hint { margin-bottom: 10px; }
+  /* Wide windows: the instrument on the left, pieces alongside. */
+  @container (min-width: 860px) {
+    .reference {
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
+      align-items: start;
+    }
   }
 </style>

@@ -69,7 +69,7 @@ assert(!/<script\b[^>]*src=/.test(html), 'External script left in HTML.');
 const destination = new URL('../dist-single/', import.meta.url);
 await mkdir(destination, { recursive: true });
 await writeFile(new URL('index.html', destination), html);
-for (const file of ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'agents.txt']) {
+for (const file of ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'agents.txt']) {
   await copyFile(new URL(`../public/${file}`, import.meta.url), new URL(file, destination));
 }
 await writeServiceWorker(fileURLToPath(destination));
