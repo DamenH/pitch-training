@@ -4,6 +4,9 @@ A local-first web app for practising **absolute pitch**: identifying notes by ea
 without a reference. It runs entirely in the browser — no backend, no accounts, no network access
 needed for exercises. Microphone audio is analysed in memory on your device and never leaves it.
 
+**[Open Pitch Training](https://damenh.github.io/pitch-training/)** ·
+[Sharing protocol and agent guide](https://damenh.github.io/pitch-training/agents.txt)
+
 ## Features
 
 | Destination | What it does |
@@ -20,13 +23,9 @@ There are no streaks, goals, timers, or question limits: practise as long as you
 
 ## Piano pieces and links
 
-### Compact-link experiment (separate preview)
+### Compact sharing links
 
-The baseline is committed as `8b5bd34` on `master`. The experiment lives on
-`experiment/compact-links` in the separate `pitch-training-compact-links` worktree.
-The experimental build is published as a separate preview; the original app remains on the baseline.
-
-Custom **Copy piece link** URLs now use `#/reference?p=...`: a versioned binary
+Custom **Copy piece link** URLs use `#/reference?p=...`: a versioned binary
 score, optionally raw-DEFLATE compressed, then base64url encoded. Common duration
 and velocity are stored once, notes share onset groups, and times use deltas.
 Unedited built-ins use their existing short `?example=ID` links. Legacy `?score=`
@@ -36,7 +35,7 @@ original format and precision.
 Sharing tradeoff: times/durations are rounded to milliseconds (minimum duration
 1 ms; endpoints clamped to one hour) and velocities to 7 bits. Ordinary timing
 error is at most 0.5 ms; endpoint/minimum-duration adjustments stay below 1 ms.
-Decoded links must still pass all existing note/voice limits. The added
+Decoded links must still pass all existing note/voice limits. The
 [fflate](https://github.com/101arrowz/fflate) dependency is bundled locally.
 
 Measured URL **fragment** sizes, excluding the common host/path:
@@ -52,12 +51,6 @@ Measured URL **fragment** sizes, excluding the common host/path:
 Run `npm run benchmark:links` to reproduce the measurements, `npm run check &&
 npm test` for checks, or `npm run test:pwa` for browser/offline checks. These
 measurements use self-contained data; unchanged built-in references are shorter.
-
-Review with `git diff --cached` in the experiment worktree. To discard the staged
-experiment there, use `git restore --source=8b5bd34 --staged --worktree .`, then
-`npm ci` to restore dependencies. The original worktree remains on the committed
-baseline; no rollback of the original app is required. The preview publication follows this worktree's build directory; revoking that preview is a separate action. Keep this wire version experimental
-until the precision tradeoff and measurements are accepted.
 
 In **Reference Library → Piano pieces**, choose/drop a `.mid` / `.midi` file,
 choose/drop a JSON score file, or paste JSON under **Paste a text score**. Load the
@@ -145,10 +138,13 @@ To verify offline behavior in Chromium: `npx playwright install chromium`, then
 `npm run test:pwa` (builds both variants and tests them under separate URL subpaths).
 Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a system Chrome/Chromium instead.
 
-1. Push the repository to GitHub with the default branch `main`.
-2. In **Settings → Pages**, set **Source** to **GitHub Actions**.
-3. Push to `main` (or run the workflow manually). `.github/workflows/deploy.yml` type-checks,
-   tests, builds and deploys `dist/`.
+The public repository is [DamenH/pitch-training](https://github.com/DamenH/pitch-training).
+Pushes to `main` (or a manual workflow run) use `.github/workflows/deploy.yml` to
+type-check, test, build and deploy `dist/` to GitHub Pages.
+
+For your own fork, enable **Settings → Pages → Source → GitHub Actions** and
+run the workflow on `main`. The included workflow requests the Pages permissions
+needed to publish the build.
 
 The build uses a relative base (`./`) and hash routing (`#/identify`, `#/settings`, …), so it works
 at a domain root or under any repository subpath such as `https://user.github.io/pitch-training/`
@@ -165,9 +161,12 @@ src/
     exercise.ts      Question generation, pitch comparison, answer evaluation
     settings.ts      Settings model, defaults, validation
     history.ts       History entries and summaries
+    score.ts         MIDI/JSON import/export and score validation
+    compactScore.ts  Compact binary sharing codec
+    examples.ts      Generated practice patterns and public-domain melodies
   audio/           Browser APIs
     context.ts       Single shared AudioContext, resumed from user gestures
-    synth.ts         Oscillator + gain-envelope synth, one voice/sequence at a time
+    synth.ts         Polyphonic sampled piano/oscillators, envelopes and score scheduling
     microphone.ts    getUserMedia + AnalyserNode + Pitchy (McLeod Pitch Method)
   lib/             Svelte 5 reactive stores (settings, history, mic, router) and helpers
   components/      Piano, NoteChooser, PitchMeter, MicPanel, IdentifyQuestion, SingQuestion
@@ -233,9 +232,8 @@ so playback needs no third-party network access.
 
 ## Tradeoffs and limitations
 
-- **No service worker.** Offline caching was left out to avoid stale-update problems; after the first
-  load the browser cache usually suffices, and the app needs no network at runtime. A web manifest is
-  included so it can be added to a home screen.
+- **Offline storage:** a service worker caches the app and all piano sounds. Updates activate
+  after all app windows close. Browser storage cleanup can remove offline files and saved data.
 - **iOS:** the hardware silent switch mutes Web Audio playback on some iOS versions — turn it off if
   you hear nothing. While the microphone is active, iOS may route playback differently or lower its
   volume; the mic is released when you leave a singing page, press *Stop*, or the tab is hidden.
@@ -244,5 +242,6 @@ so playback needs no third-party network access.
   question, so a note played or sung earlier is never scored.
 - Pitch-class selection is uniform across enabled notes, then the octave is uniform within range.
   Immediate repeats of the same pitch class are avoided when more than one note is enabled.
-- Settings, history (capped at 5000 entries) and the reference sequence live in `localStorage`;
-  clearing site data removes them. Nothing is ever sent to a server.
+- Settings, history (capped at 5000 entries) and the reference sequence live in path-namespaced
+  `localStorage`; piano pieces use IndexedDB with a localStorage fallback. Clearing site data
+  removes them. Music data and microphone recordings are never uploaded by the app.

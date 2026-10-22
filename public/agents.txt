@@ -43,15 +43,14 @@ APP_BASE#/reference?midi=PAYLOAD
   Do not encode a file path, JSON, hexadecimal string, or data: URL here.
 APP_BASE#/reference?score=PAYLOAD
   PAYLOAD is unpadded URL-safe base64 of UTF-8 bytes of the version-1 JSON above.
-These legacy encodings remain supported alongside the experimental p format below.
+These legacy encodings remain supported alongside the compact p format below.
 Use exactly one payload parameter: midi, score, p, or example. Base64url replaces + with -, / with _, and
 removes trailing =. The legacy midi/score encodings use no compression. Maximum payload is 64,000 characters;
 shorter links are preferable because messaging clients may impose lower limits.
 For larger pieces, share the .mid or .json file for import instead.
 The fragment is not sent with the HTTP request, but anyone given the complete
-link can decode the piece. Generated custom links in this experiment use compact p payloads.
-The original baseline does not support p links. Use this experimental preview's
-APP_BASE when testing or sharing them. Unchanged built-ins use example=ID references.
+link can decode the piece. Generated custom links use compact p payloads. Unchanged built-ins use
+example=ID references. Use the APP_BASE of the app you are sharing from.
 
 BUILT-IN MIDI EXAMPLES
 These examples are bundled and available offline without a saved-library entry.
@@ -119,7 +118,7 @@ cleanup is performed. Saved pieces and all piano sounds can work offline after
 the app's Settings reports Ready offline. The user's browser/device owns storage.
 
 
-EXPERIMENTAL COMPACT SHARING V1
+COMPACT SHARING V1
 APP_BASE#/reference?p=PAYLOAD
 PAYLOAD: unpadded base64url of the packet below. No network/server storage is used.
 The first packet byte is version=1. The second byte is flags: 0 for a plain body,
