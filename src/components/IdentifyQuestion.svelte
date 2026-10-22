@@ -106,7 +106,7 @@
 <section class="stack identify" aria-label="Hear and identify">
   <div class="prompt">
     <button type="button" class="play" {...onPress(play)} disabled={!canPlay} title="Play note (R)">
-      <span class="disc"><Icon name="play" size={30} /></span>
+      <span class="disc"><Icon name="play" size={28} /></span>
       <span>{#if plays === 0}Play note{:else if canPlay}Replay note{:else}Played once{/if}</span>
     </button>
   </div>
@@ -175,9 +175,8 @@
   .disc {
     display: grid;
     place-items: center;
-    width: 80px;
-    height: 80px;
-    padding-left: 4px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     background: var(--accent);
     color: var(--accent-text);
@@ -219,8 +218,8 @@
       flex-direction: row;
     }
     .disc {
-      width: 52px;
-      height: 52px;
+      width: 48px;
+      height: 48px;
     }
   }
 </style>
