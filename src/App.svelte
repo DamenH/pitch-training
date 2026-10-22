@@ -116,7 +116,13 @@
   </ul>
 </nav>
 
-<main id="main" bind:this={main} tabindex="-1" style:--page-max={WIDTHS[router.current]}>
+<main
+  id="main"
+  bind:this={main}
+  tabindex="-1"
+  class:identify-page={router.current === 'identify'}
+  style:--page-max={WIDTHS[router.current]}
+>
   <header class="pagebar" class:scrolled class:pushed>
     <div class="pagebar-inner">
       {#if pushed}
@@ -254,6 +260,21 @@
     max-width: var(--page-max);
     margin-inline: auto;
     padding-top: var(--space-2);
+  }
+
+  @media (orientation: portrait) and (max-width: 899px) {
+    main.identify-page {
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+      box-sizing: border-box;
+    }
+    .identify-page .page {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      width: 100%;
+    }
   }
 
   .sidebar {

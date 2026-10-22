@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { evaluateIdentify, type IdentifyResult, type Question } from '../domain/exercise';
   import { noteName, noteToMidi, pitchClassName, midiToOctave, type PitchClass } from '../domain/music';
   import { stopAll } from '../audio/synth';
@@ -26,8 +26,6 @@
   let selected = $state<PitchClass | null>(null);
   let result = $state<IdentifyResult | null>(null);
   let notice = $state('');
-  let nextButton: HTMLButtonElement | undefined = $state();
-  let feedback: HTMLElement | undefined = $state();
 
   // Single-play applies before the answer; afterwards replay is always allowed.
   const canPlay = $derived(result !== null || s.replayPolicy === 'unlimited' || plays === 0);
@@ -54,17 +52,6 @@
     result = evaluateIdentify(question, selected);
     haptic(result.correct ? 'success' : 'error');
     onresult(result, Date.now() - (firstPlayAt ?? question.createdAt));
-    // On small screens the verdict can land below the fold; bring it into view, then move focus.
-    void tick().then(() => {
-      feedback?.scrollIntoView({ block: 'nearest' });
-      nextButton?.focus({ preventScroll: true });
-    });
-  }
-
-  function playAnswer() {
-    if (!result) return;
-    // The chosen pitch class in the same octave as the target, for comparison.
-    void playMidi(noteToMidi(result.answer, midiToOctave(question.targetMidi)));
   }
 
   function pressKey(pc: PitchClass) {
@@ -125,7 +112,7 @@
     <p class="notice warn" role="status">{notice}</p>
   {/if}
 
-  <div aria-live="polite" bind:this={feedback}>
+  <div class="feedback" aria-live="polite">
     {#if result}
       <div class="notice verdict" class:good={result.correct} class:bad={!result.correct}>
         <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
@@ -139,18 +126,19 @@
   </div>
 
   <div class="action-bar">
-    {#if result}
-      {#if !result.correct}
-        <button type="button" class="btn" {...onPress(playAnswer)}>Hear your note</button>
-      {/if}
-      <button type="button" class="btn primary" bind:this={nextButton} onclick={onnext} title="Next note (Enter)">
+    <button
+      type="button"
+      class="btn primary"
+      onclick={result ? onnext : submit}
+      disabled={!result && (selected === null || plays === 0)}
+      title={result ? 'Next note (Enter)' : 'Submit (Enter)'}
+    >
+      {#if result}
         Next note <Icon name="arrow-right" />
-      </button>
-    {:else}
-      <button type="button" class="btn primary" onclick={submit} disabled={selected === null || plays === 0} title="Submit (Enter)">
+      {:else}
         Submit answer
-      </button>
-    {/if}
+      {/if}
+    </button>
   </div>
 </section>
 
@@ -208,6 +196,28 @@
   .play:focus-visible .disc {
     outline: 3px solid var(--focus);
     outline-offset: 3px;
+  }
+
+  @media (orientation: portrait) and (max-width: 899px) {
+    .identify {
+      flex: 1;
+    }
+    .feedback {
+      min-height: 88px;
+    }
+    .action-bar {
+      position: fixed;
+      left: 50%;
+      bottom: calc(var(--nav-height) + var(--safe-bottom) + var(--space-2));
+      width: min(
+        var(--page-max),
+        calc(100vw - 2 * var(--gutter) - var(--safe-left) - var(--safe-right))
+      );
+      padding: 0;
+      margin: 0;
+      transform: translateX(-50%);
+      background: none;
+    }
   }
 
   @media (orientation: landscape) and (max-height: 500px) {

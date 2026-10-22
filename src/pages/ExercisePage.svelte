@@ -106,6 +106,9 @@
 </div>
 
 <style>
+  .exercise {
+    flex: 1;
+  }
   .meta {
     display: flex;
     justify-content: space-between;
