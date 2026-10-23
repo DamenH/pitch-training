@@ -146,11 +146,9 @@ export async function verifyScramble(page, url) {
   await page.reload();
   await page.goto(`${url}#/settings`);
   await expect(scramble).toBeChecked();
+  await scramble.uncheck();
   await page.goto(`${url}#/sing-practice`);
   await expect(page.getByText('Scramble', { exact: true })).toHaveCount(0);
-  await page.goto(`${url}#/settings`);
-  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
-  await scramble.uncheck();
   console.log('  scramble: plays a run on Next note only when enabled and persists as one app-wide setting');
 }
 

@@ -219,6 +219,12 @@ The three exercise destinations render `ExercisePage` with one exercise kind.
 Reference browsing and Import share `PiecePlayer`; parsing and storage remain separate
 from playback and presentation. Old Mixed history entries remain readable.
 
+## Artwork
+
+The app icon adapts Font Awesome Free's
+[music icon](https://github.com/FortAwesome/Font-Awesome/blob/7.x/svgs/solid/music.svg),
+licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## Piano sound
 
 The default sound is a sampled grand piano: the

@@ -1,9 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect id="background" width="64" height="64" rx="14" fill="#2f5d50"/>
-  <g fill="#f7f6f2" transform="translate(.55 -.8)">
-    <path d="M26.2 18.8 46.2 14.2V20l-20 4.6z"/>
-    <path d="M28.1 20.2v24.5M44.4 16.5v24.3" fill="none" stroke="#f7f6f2" stroke-width="3.6" stroke-linecap="round"/>
-    <ellipse cx="23.3" cy="45" rx="6.2" ry="4.7" transform="rotate(-18 23.3 45)"/>
-    <ellipse cx="39.6" cy="40.8" rx="6.2" ry="4.7" transform="rotate(-18 39.6 40.8)"/>
-  </g>
+  <!-- Adapted from Font Awesome Free's “music” icon, CC BY 4.0. -->
+  <path
+    id="mark"
+    data-optical-center-x="30.75"
+    data-optical-center-y="32"
+    fill="#f7f6f2"
+    transform="translate(14.25 15.5) scale(.06875)"
+    d="M468 7c7.6 6.1 12 15.3 12 25v304c0 44.2-43 80-96 80s-96-35.8-96-80 43-80 96-80c11.2 0 22 1.6 32 4.6V143.9l-224 49.8V400c0 44.2-43 80-96 80S0 444.2 0 400s43-80 96-80c11.2 0 22 1.6 32 4.6V96c0-15 10.4-28 25.1-31.2l288-64c9.5-2.1 19.4.2 27 6.3z"
+  />
 </svg>

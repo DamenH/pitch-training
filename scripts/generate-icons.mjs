@@ -12,15 +12,18 @@ async function render(name, size, maskable = false) {
   const page = await browser.newPage({ viewport: { width: size, height: size } });
   await page.setContent(`<style>*{box-sizing:border-box}html,body,svg{width:100%;height:100%;margin:0;display:block}</style>${source}`);
   if (maskable) await page.locator('#background').evaluate((element) => element.setAttribute('rx', '0'));
-  const { center, expectedCenter } = await page.locator('g').evaluate((mark) => {
+  const { center, expectedCenter } = await page.locator('#mark').evaluate((mark) => {
     const bounds = mark.getBBox();
     const svg = mark.ownerSVGElement;
     if (!svg) throw new Error('Icon mark is not inside an SVG');
     const actual = new DOMPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2).matrixTransform(mark.getScreenCTM());
-    const expected = new DOMPoint(32, 32).matrixTransform(svg.getScreenCTM());
+    const expected = new DOMPoint(
+      Number(mark.getAttribute('data-optical-center-x')),
+      Number(mark.getAttribute('data-optical-center-y')),
+    ).matrixTransform(svg.getScreenCTM());
     return { center: { x: actual.x, y: actual.y }, expectedCenter: { x: expected.x, y: expected.y } };
   });
-  const tolerance = size * 0.75 / 64;
+  const tolerance = size * 0.25 / 64;
   if (Math.abs(center.x - expectedCenter.x) > tolerance || Math.abs(center.y - expectedCenter.y) > tolerance) {
     throw new Error(`Icon mark is off-center at (${center.x.toFixed(2)}, ${center.y.toFixed(2)})`);
   }
