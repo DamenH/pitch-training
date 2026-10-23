@@ -5,6 +5,7 @@
 
 import {
   centsFromMidi,
+  midiToOctave,
   midiToPitchClass,
   nearestMidiWithPitchClass,
   noteToMidi,
@@ -13,7 +14,7 @@ import {
 import type { ScoringPolicy, Settings } from './settings';
 import type { StablePitch } from './pitch';
 
-export type ExerciseKind = 'identify' | 'sing-practice' | 'sing-test';
+export type ExerciseKind = 'identify' | 'identify-octave' | 'sing-practice' | 'sing-test';
 
 export interface Question {
   id: string;
@@ -37,7 +38,7 @@ function pick<T>(items: readonly T[], rng: Rng): T {
 export function candidateNotes(kind: ExerciseKind, settings: Settings): number[] {
   const enabled = new Set(settings.enabledPitchClasses);
   const notes: number[] = [];
-  if (kind === 'identify') {
+  if (kind === 'identify' || kind === 'identify-octave') {
     for (let oct = settings.playbackOctaveMin; oct <= settings.playbackOctaveMax; oct++) {
       for (const pc of settings.enabledPitchClasses) notes.push(noteToMidi(pc, oct));
     }
@@ -60,6 +61,15 @@ export function candidateNotes(kind: ExerciseKind, settings: Settings): number[]
 export function generateTarget(kind: ExerciseKind, settings: Settings, rng: Rng, previousTargetMidi?: number): number {
   const candidates = candidateNotes(kind, settings);
   if (candidates.length === 0) throw new Error('No candidate notes for the current settings');
+
+  if (kind === 'identify-octave') {
+    const octaves = [...new Set(candidates.map(midiToOctave))];
+    const previousOctave = previousTargetMidi === undefined ? undefined : midiToOctave(previousTargetMidi);
+    const octavePool =
+      octaves.length > 1 && previousOctave !== undefined ? octaves.filter((octave) => octave !== previousOctave) : octaves;
+    const octave = pick(octavePool, rng);
+    return pick(candidates.filter((midi) => midiToOctave(midi) === octave), rng);
+  }
 
   // Pitch class is the objective, so avoid repeating the previous pitch class when
   // possible; with a single enabled class fall back to avoiding the same exact note.
@@ -143,6 +153,22 @@ export function evaluateIdentify(question: Question, answer: PitchClass): Identi
   };
 }
 
+export interface IdentifyOctaveResult {
+  kind: 'identify-octave';
+  targetMidi: number;
+  answer: number;
+  correct: boolean;
+}
+
+export function evaluateIdentifyOctave(question: Question, answer: number): IdentifyOctaveResult {
+  return {
+    kind: 'identify-octave',
+    targetMidi: question.targetMidi,
+    answer,
+    correct: answer === midiToOctave(question.targetMidi),
+  };
+}
+
 export interface PitchComparison {
   /** Nearest equal-tempered note to the sung pitch. */
   detectedMidi: number;
@@ -219,7 +245,7 @@ export function evaluateSing(
   };
 }
 
-export type ExerciseResult = IdentifyResult | SingResult;
+export type ExerciseResult = IdentifyResult | IdentifyOctaveResult | SingResult;
 
 /** Human-oriented description of what counts as correct for a singing question. */
 export function describePolicy(policy: ScoringPolicy): string {

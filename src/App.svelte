@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { href, isTab, router, type Route } from './lib/router.svelte';
   import { toast } from './lib/toast.svelte';
+  import { identifyMode, toggleIdentifyMode } from './lib/identifyMode.svelte';
   import ImportPage from './pages/ImportPage.svelte';
   import ReferencePage from './pages/ReferencePage.svelte';
   import ExercisePage from './pages/ExercisePage.svelte';
@@ -51,9 +52,11 @@
   let main: HTMLElement | undefined = $state();
   let scrolled = $state(false);
   const pushed = $derived(!isTab(router.current));
+  const identifyKind = $derived(identifyMode.value === 'notes' ? 'identify' : 'identify-octave');
 
   $effect(() => {
-    document.title = `${TITLES[router.current]} · Pitch Training`;
+    const title = router.current === 'identify' ? `Identify ${identifyMode.value === 'notes' ? 'Notes' : 'Octaves'}` : TITLES[router.current];
+    document.title = `${title} · Pitch Training`;
   });
 
   // On navigation, move focus to the new screen and reopen tabs where they were left.
@@ -128,7 +131,21 @@
       {#if pushed}
         <a class="icon-btn back" href={href(router.lastTab)} onclick={back} aria-label="Back"><Icon name="back" /></a>
       {/if}
-      <h1>{TITLES[router.current]}</h1>
+      <div class="page-title">
+        <h1>{TITLES[router.current]}</h1>
+        {#if router.current === 'identify'}
+          <button
+            type="button"
+            class="identify-mode"
+            class:octaves={identifyMode.value === 'octaves'}
+            aria-pressed={identifyMode.value === 'octaves'}
+            aria-label={`Identify ${identifyMode.value} mode; switch to ${identifyMode.value === 'notes' ? 'octaves' : 'notes'}`}
+            onclick={toggleIdentifyMode}
+          >
+            {identifyMode.value === 'notes' ? 'Notes' : 'Octaves'}
+          </button>
+        {/if}
+      </div>
       <div class="bar-tools">
         {#each TOOLS as item (item.route)}
           <a class="icon-btn" href={href(item.route)} aria-current={current(item.route)} aria-label={item.label} title={item.label}>
@@ -143,7 +160,7 @@
     {#if router.current === 'reference'}
       <ReferencePage />
     {:else if router.current === 'identify'}
-      <ExercisePage kind="identify" />
+      {#key identifyKind}<ExercisePage kind={identifyKind} />{/key}
     {:else if router.current === 'sing-practice'}
       <ExercisePage kind="sing-practice" />
     {:else if router.current === 'sing-test'}
@@ -227,12 +244,55 @@
   }
 
   .pagebar h1 {
-    flex: 1;
     font-size: var(--text-lg);
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .page-title {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .page-title h1 {
+    flex: 0 1 auto;
+  }
+
+  .identify-mode {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 75%, var(--border));
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    transition:
+      transform 90ms var(--ease),
+      filter 120ms,
+      background-color 160ms;
+  }
+
+  .identify-mode.octaves {
+    border-color: var(--octave);
+    background: var(--octave);
+    color: var(--octave-text);
+  }
+
+  .identify-mode:active {
+    transform: scale(0.96);
+    filter: brightness(0.92);
+  }
+
+  @media (hover: hover) {
+    .identify-mode:hover {
+      filter: brightness(1.08);
+    }
   }
 
   .back {

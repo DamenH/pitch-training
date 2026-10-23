@@ -23,6 +23,7 @@
   import ScoreLibrary from '../components/ScoreLibrary.svelte';
   import MicPanel from '../components/MicPanel.svelte';
   import PitchMeter from '../components/PitchMeter.svelte';
+  import OctavePicker from '../components/OctavePicker.svelte';
 
   const s = $derived(settings.value);
   let octave = $state(lastOctave);
@@ -103,17 +104,7 @@
   <div class="stack instrument">
     <section class="stack keyboard" aria-labelledby="kb-heading">
       <h2 id="kb-heading" class="visually-hidden">Keyboard</h2>
-      <fieldset class="octaves">
-        <legend class="visually-hidden">Octave</legend>
-        <div class="segmented board">
-          {#each octaves as o (o)}
-            <label class:checked={octave === o}>
-              <input type="radio" name="octave" value={o} checked={octave === o} onchange={() => setOctave(o)} />
-              <span>{o}</span>
-            </label>
-          {/each}
-        </div>
-      </fieldset>
+      <OctavePicker {octaves} value={octave} onselect={setOctave} />
       <Piano {octave} selected={selectedPc} spelling={s.spelling} onpress={press}
         onrelease={(pc) => releaseMidi(noteToMidi(pc, octave))} {active} />
       <p class="readout" aria-live="polite">
@@ -152,35 +143,10 @@
     gap: 0;
   }
 
-  .octaves,
   .readout {
     width: 100%;
     max-width: 720px;
     margin-inline: auto;
-  }
-
-  .octaves {
-    border: 0;
-    padding: 0;
-    min-width: 0;
-  }
-
-  /* The octave picker reads as the piano's name board: a dark strip across the top of the keys. */
-  .board {
-    padding: 4px 4px 5px;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    background: var(--key-black);
-  }
-
-  .board label {
-    color: color-mix(in srgb, var(--key-black-text) 60%, transparent);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .board label.checked {
-    background: var(--key-black-selected);
-    color: var(--key-black-selected-text);
-    box-shadow: none;
   }
 
   /* Height reserved so nothing below moves when a key is first pressed. */

@@ -20,6 +20,7 @@
     label,
     onrelease,
     active = [],
+    interactive = true,
   }: {
     /** Octave for labels; null for pitch classes only (no octave). */
     octave?: number | null;
@@ -29,6 +30,8 @@
     /** Enable held keys / multiple pointer contacts for the playable keyboard. */
     onrelease?: (pc: PitchClass) => void;
     active?: readonly PitchClass[];
+    /** False renders the keyboard as a labelled visual without playable keys. */
+    interactive?: boolean;
     /** Keys outside this set are shown but can't be pressed. Null = all enabled. */
     enabled?: readonly PitchClass[] | null;
     disabled?: boolean;
@@ -101,7 +104,7 @@
       class:correct={correct !== null && pc === correct}
       class:wrong={correct !== null && pc === selected && pc !== correct}
       class:off={enabled !== null && !enabled.includes(pc)}
-      disabled={disabled || (enabled !== null && !enabled.includes(pc))}
+      disabled={!interactive || disabled || (enabled !== null && !enabled.includes(pc))}
       style:grid-column={white ? String(column) : undefined}
       style:left={white ? undefined : `calc(${(column / 7) * 100}% - var(--black-w) / 2)`}
       aria-pressed={onrelease ? active.includes(pc) : selected === pc}

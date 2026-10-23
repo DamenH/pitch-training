@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import { evaluateIdentify, type IdentifyResult, type Question } from '../domain/exercise';
+  import {
+    evaluateIdentify,
+    evaluateIdentifyOctave,
+    type IdentifyOctaveResult,
+    type IdentifyResult,
+    type Question,
+  } from '../domain/exercise';
   import { noteName, noteToMidi, pitchClassName, midiToOctave, type PitchClass } from '../domain/music';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
@@ -9,6 +15,7 @@
   import { pitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from './Piano.svelte';
   import Icon from './Icon.svelte';
+  import OctavePicker from './OctavePicker.svelte';
 
   let {
     question,
@@ -16,7 +23,7 @@
     onnext,
   }: {
     question: Question;
-    onresult: (result: IdentifyResult, responseMs: number) => void;
+    onresult: (result: IdentifyResult | IdentifyOctaveResult, responseMs: number) => void;
     onnext: () => void;
   } = $props();
 
@@ -24,12 +31,17 @@
   let plays = $state(0);
   let firstPlayAt: number | null = null;
   let selected = $state<PitchClass | null>(null);
-  let result = $state<IdentifyResult | null>(null);
+  let selectedOctave = $state<number | null>(null);
+  let result = $state<IdentifyResult | IdentifyOctaveResult | null>(null);
   let notice = $state('');
 
   // Single-play applies before the answer; afterwards replay is always allowed.
   const canPlay = $derived(result !== null || s.replayPolicy === 'unlimited' || plays === 0);
   const options = $derived(s.enabledPitchClasses);
+  const octaveMode = $derived(question.kind === 'identify-octave');
+  const octaves = $derived(
+    Array.from({ length: s.playbackOctaveMax - s.playbackOctaveMin + 1 }, (_, i) => s.playbackOctaveMin + i),
+  );
 
   function play() {
     if (!canPlay) return;
@@ -45,19 +57,27 @@
       notice = 'Play the note first.';
       return;
     }
-    if (selected === null) {
-      notice = 'Choose a note, then submit.';
-      return;
+    if (octaveMode) {
+      if (selectedOctave === null) {
+        notice = 'Choose an octave, then submit.';
+        return;
+      }
+      result = evaluateIdentifyOctave(question, selectedOctave);
+    } else {
+      if (selected === null) {
+        notice = 'Choose a note, then submit.';
+        return;
+      }
+      result = evaluateIdentify(question, selected);
     }
-    result = evaluateIdentify(question, selected);
     haptic(result.correct ? 'success' : 'error');
     onresult(result, Date.now() - (firstPlayAt ?? question.createdAt));
   }
 
   function pressKey(pc: PitchClass) {
-    if (result) {
+    if (result?.kind === 'identify') {
       playMidiPoly(noteToMidi(pc, midiToOctave(question.targetMidi)));
-    } else if (options.includes(pc)) {
+    } else if (!result && !octaveMode && options.includes(pc)) {
       selected = pc;
     }
   }
@@ -79,9 +99,17 @@
       return;
     }
     const pc = pitchClassFromKey(e);
-    if (pc !== null && (result !== null || options.includes(pc))) {
+    if (!octaveMode && pc !== null && (result !== null || options.includes(pc))) {
       e.preventDefault();
       pressKey(pc);
+      return;
+    }
+    if (octaveMode && !result && /^\d$/.test(e.key)) {
+      const octave = Number(e.key);
+      if (octaves.includes(octave)) {
+        e.preventDefault();
+        selectedOctave = octave;
+      }
     }
   }
 
@@ -98,15 +126,36 @@
     </button>
   </div>
 
-  <!-- Silent while guessing; after submission, play comparison notes in the target's octave. -->
-  <Piano
-    spelling={s.spelling}
-    {selected}
-    enabled={result ? null : options}
-    correct={result ? question.targetPitchClass : null}
-    label={result ? 'Play notes to compare with the answer' : 'Which note did you hear?'}
-    onpress={pressKey}
-  />
+  {#if octaveMode}
+    <div class="octave-answer">
+      <OctavePicker
+        {octaves}
+        value={result ? midiToOctave(question.targetMidi) : selectedOctave}
+        onselect={(octave) => { selectedOctave = octave; }}
+        answer={result?.kind === 'identify-octave' ? result.answer : null}
+        correct={result ? midiToOctave(question.targetMidi) : null}
+        disabled={result !== null}
+      />
+      <Piano
+        octave={result ? midiToOctave(question.targetMidi) : selectedOctave}
+        spelling={s.spelling}
+        enabled={[question.targetPitchClass]}
+        interactive={false}
+        label={`${pitchClassName(question.targetPitchClass, s.spelling)}, choose its octave`}
+        onpress={() => {}}
+      />
+    </div>
+  {:else}
+    <!-- Silent while guessing; after submission, play comparison notes in the target's octave. -->
+    <Piano
+      spelling={s.spelling}
+      {selected}
+      enabled={result ? null : options}
+      correct={result ? question.targetPitchClass : null}
+      label={result ? 'Play notes to compare with the answer' : 'Which note did you hear?'}
+      onpress={pressKey}
+    />
+  {/if}
 
   {#if notice && !result}
     <p class="notice warn" role="status">{notice}</p>
@@ -117,9 +166,14 @@
       <div class="notice verdict" class:good={result.correct} class:bad={!result.correct}>
         <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
         <p class="detail">
-          It was <strong>{pitchClassName(question.targetPitchClass, s.spelling)}</strong>
-          <span class="muted">({noteName(question.targetMidi, s.spelling)})</span>{#if !result.correct}.
-            You chose <strong>{pitchClassName(result.answer, s.spelling)}</strong>{/if}.
+          {#if result.kind === 'identify-octave'}
+            It was <strong>{noteName(question.targetMidi, s.spelling)}</strong>{#if !result.correct}.
+              You chose <strong>{pitchClassName(question.targetPitchClass, s.spelling)}{result.answer}</strong>{/if}.
+          {:else}
+            It was <strong>{pitchClassName(question.targetPitchClass, s.spelling)}</strong>
+            <span class="muted">({noteName(question.targetMidi, s.spelling)})</span>{#if !result.correct}.
+              You chose <strong>{pitchClassName(result.answer, s.spelling)}</strong>{/if}.
+          {/if}
         </p>
       </div>
     {/if}
@@ -130,7 +184,7 @@
       type="button"
       class="btn primary"
       onclick={result ? onnext : submit}
-      disabled={!result && (selected === null || plays === 0)}
+      disabled={!result && (plays === 0 || (octaveMode ? selectedOctave === null : selected === null))}
       title={result ? 'Next note (Enter)' : 'Submit (Enter)'}
     >
       {#if result}
@@ -196,6 +250,10 @@
   .play:focus-visible .disc {
     outline: 3px solid var(--focus);
     outline-offset: 3px;
+  }
+  .octave-answer {
+    display: flex;
+    flex-direction: column;
   }
 
   @media (orientation: portrait) and (max-width: 899px) {

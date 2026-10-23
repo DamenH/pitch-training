@@ -27,13 +27,12 @@ describe('settings', () => {
     expect(sanitizeSettings({ enabledPitchClasses: [9, 0, 9] }).enabledPitchClasses).toEqual([0, 9]);
   });
 
-  it('keeps the scramble toggle per exercise', () => {
-    expect(sanitizeSettings({ scramble: { identify: true, 'sing-test': 'yes' } }).scramble).toEqual({
-      identify: true,
-      'sing-practice': false,
-      'sing-test': false,
-    });
-    expect(sanitizeSettings({ scramble: 1 }).scramble).toEqual(defaultSettings().scramble);
+  it('uses one scramble toggle and migrates legacy per-exercise values', () => {
+    expect(sanitizeSettings({ scramble: true }).scramble).toBe(true);
+    expect(sanitizeSettings({ scramble: false }).scramble).toBe(false);
+    expect(sanitizeSettings({ scramble: { identify: true } }).scramble).toBe(true);
+    expect(sanitizeSettings({ scramble: { identify: false, 'sing-test': false } }).scramble).toBe(false);
+    expect(sanitizeSettings({ scramble: 'yes' }).scramble).toBe(false);
   });
 
   it('orders octave ranges and clamps values', () => {
@@ -71,5 +70,17 @@ describe('history', () => {
     const e = entryFromResult({ ...q, kind: 'identify' }, { kind: 'identify', targetMidi: 69, answer: 9, correct: true }, { mixed: false, responseMs: 10 });
     expect(sanitizeHistory([e, { foo: 1 }, null])).toEqual([e]);
     expect(sanitizeHistory('x')).toEqual([]);
+  });
+
+  it('stores and summarises octave identification separately', () => {
+    const octaveQuestion = { ...q, kind: 'identify-octave' as const, targetMidi: 60, targetPitchClass: 0 as const };
+    const entry = entryFromResult(
+      octaveQuestion,
+      { kind: 'identify-octave', targetMidi: 60, answer: 3, correct: false },
+      { mixed: false, responseMs: 1200 },
+    );
+    expect(entry).toMatchObject({ exercise: 'identify-octave', answer: 3, outcome: 'incorrect' });
+    expect(sanitizeHistory([entry])).toEqual([entry]);
+    expect(summarize([entry]).byExercise['identify-octave']).toMatchObject({ answered: 1, incorrect: 1 });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comparePitch, evaluateIdentify, evaluateSing, type Question } from '../src/domain/exercise';
+import { comparePitch, evaluateIdentify, evaluateIdentifyOctave, evaluateSing, type Question } from '../src/domain/exercise';
 import { frequencyToMidi, midiToFrequency } from '../src/domain/music';
 import type { StablePitch } from '../src/domain/pitch';
 import type { ScoringPolicy } from '../src/domain/settings';
@@ -108,5 +108,11 @@ describe('evaluateIdentify', () => {
     const q = { ...question(57), kind: 'identify' as const };
     expect(evaluateIdentify(q, 9).correct).toBe(true);
     expect(evaluateIdentify(q, 10).correct).toBe(false);
+  });
+
+  it('scores scientific-pitch octaves across the B/C boundary', () => {
+    expect(evaluateIdentifyOctave({ ...question(59), kind: 'identify-octave' }, 3).correct).toBe(true);
+    expect(evaluateIdentifyOctave({ ...question(60), kind: 'identify-octave' }, 3).correct).toBe(false);
+    expect(evaluateIdentifyOctave({ ...question(60), kind: 'identify-octave' }, 4).correct).toBe(true);
   });
 });

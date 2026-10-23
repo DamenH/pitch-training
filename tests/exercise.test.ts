@@ -25,6 +25,11 @@ describe('candidateNotes', () => {
     expect(candidateNotes('identify', s)).toEqual([48, 57, 60, 69]);
   });
 
+  it('uses the identify playback range for octave questions', () => {
+    const s = settings({ enabledPitchClasses: [0, 9], playbackOctaveMin: 3, playbackOctaveMax: 4 });
+    expect(candidateNotes('identify-octave', s)).toEqual([48, 57, 60, 69]);
+  });
+
   it('uses the vocal range for singing', () => {
     const s = settings({ enabledPitchClasses: [9], vocalLow: 50, vocalHigh: 70 });
     expect(candidateNotes('sing-test', s)).toEqual([57, 69]);
@@ -82,6 +87,23 @@ describe('generateTarget', () => {
   it('still works when only a single note is possible', () => {
     const s = settings({ enabledPitchClasses: [9], playbackOctaveMin: 4, playbackOctaveMax: 4 });
     expect(generateTarget('identify', s, seeded(5), 69)).toBe(69);
+  });
+
+  it('avoids repeating the octave for octave questions when possible', () => {
+    const s = settings({ enabledPitchClasses: [0, 4, 7], playbackOctaveMin: 3, playbackOctaveMax: 5 });
+    const rng = seeded(12);
+    let prev = generateTarget('identify-octave', s, rng);
+    for (let i = 0; i < 200; i++) {
+      const next = generateTarget('identify-octave', s, rng, prev);
+      expect(midiToOctave(next)).not.toBe(midiToOctave(prev));
+      expect(s.enabledPitchClasses).toContain(midiToPitchClass(next));
+      prev = next;
+    }
+  });
+
+  it('still generates octave questions with a single configured octave', () => {
+    const s = settings({ enabledPitchClasses: [0, 7], playbackOctaveMin: 4, playbackOctaveMax: 4 });
+    expect(midiToOctave(generateTarget('identify-octave', s, seeded(13), 60))).toBe(4);
   });
 
   it('chooses pitch classes roughly uniformly', () => {

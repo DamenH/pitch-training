@@ -10,6 +10,9 @@
   --accent: #2f5d50;
   --accent-text: #ffffff;
   --accent-soft: #dfeae5;
+  --octave: #6f4b9b;
+  --octave-text: #ffffff;
+  --octave-soft: #ece4f5;
   --good: #1f6b3a;
   --good-soft: #dcefe2;
   --bad: #a3322b;
@@ -87,6 +90,9 @@
     --accent: #7cc4ad;
     --accent-text: #0f1a16;
     --accent-soft: #23352f;
+    --octave: #c0a3ed;
+    --octave-text: #1a1026;
+    --octave-soft: #332743;
     --good: #7fd29a;
     --good-soft: #1d3324;
     --bad: #f0928a;

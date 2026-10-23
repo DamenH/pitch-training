@@ -2,7 +2,7 @@ import { ALL_PITCH_CLASSES, toPitchClass, type PitchClass } from './music';
 import type { ExerciseResult, Question } from './exercise';
 import type { ScoringPolicy } from './settings';
 
-export type HistoryExercise = 'identify' | 'sing-test';
+export type HistoryExercise = 'identify' | 'identify-octave' | 'sing-test';
 export type HistoryOutcome = 'correct' | 'incorrect' | 'no-detection';
 
 export interface HistoryEntry {
@@ -14,7 +14,7 @@ export interface HistoryEntry {
   targetMidi: number;
   targetPitchClass: PitchClass;
   outcome: HistoryOutcome;
-  /** Identify: chosen pitch class. Sing: nearest note sung (MIDI). */
+  /** Identify notes: pitch class. Identify octaves: octave number. Sing: nearest MIDI note. */
   answer: number | null;
   /** Sing only: signed deviation from the reference, in cents. */
   cents: number | null;
@@ -39,6 +39,16 @@ export function entryFromResult(
     return {
       ...common,
       exercise: 'identify',
+      outcome: result.correct ? 'correct' : 'incorrect',
+      answer: result.answer,
+      cents: null,
+      policy: null,
+    };
+  }
+  if (result.kind === 'identify-octave') {
+    return {
+      ...common,
+      exercise: 'identify-octave',
       outcome: result.correct ? 'correct' : 'incorrect',
       answer: result.answer,
       cents: null,
@@ -101,6 +111,7 @@ export function summarize(entries: readonly HistoryEntry[]): HistorySummary {
     overall: tally(entries),
     byExercise: {
       identify: tally(entries.filter((e) => e.exercise === 'identify')),
+      'identify-octave': tally(entries.filter((e) => e.exercise === 'identify-octave')),
       'sing-test': tally(entries.filter((e) => e.exercise === 'sing-test')),
     },
     byPitchClass,
@@ -116,7 +127,7 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
     const e = raw as Record<string, unknown>;
     if (
       typeof e.date !== 'string' ||
-      (e.exercise !== 'identify' && e.exercise !== 'sing-test') ||
+      (e.exercise !== 'identify' && e.exercise !== 'identify-octave' && e.exercise !== 'sing-test') ||
       (e.outcome !== 'correct' && e.outcome !== 'incorrect' && e.outcome !== 'no-detection') ||
       typeof e.targetMidi !== 'number' ||
       typeof e.responseMs !== 'number'

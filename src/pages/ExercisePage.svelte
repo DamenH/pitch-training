@@ -14,7 +14,7 @@
 
 <script lang="ts">
   import { flushSync, onDestroy, untrack } from 'svelte';
-  import { createQuestion, type IdentifyResult, type SingResult } from '../domain/exercise';
+  import { createQuestion, type IdentifyOctaveResult, type IdentifyResult, type SingResult } from '../domain/exercise';
   import { entryFromResult } from '../domain/history';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
@@ -54,14 +54,10 @@
     flushSync(() => {
       question = makeQuestion(question);
     });
-    if (s.scramble[kind]) void playScramble(question.targetPitchClass);
+    if (s.scramble) void playScramble(question.targetPitchClass);
   }
 
-  function toggleScramble(on: boolean) {
-    settings.update({ scramble: { ...s.scramble, [kind]: on } });
-  }
-
-  function onIdentify(result: IdentifyResult, responseMs: number) {
+  function onIdentify(result: IdentifyResult | IdentifyOctaveResult, responseMs: number) {
     scored = true;
     answered += 1;
     if (result.correct) correct += 1;
@@ -86,7 +82,7 @@
 
   $effect(() => {
     void [s.waveform, s.playbackOctaveMin, s.playbackOctaveMax];
-    if (kind === 'identify') preloadPlaybackRange();
+    if (kind === 'identify' || kind === 'identify-octave') preloadPlaybackRange();
   });
 
   const showTally = $derived(question.kind !== 'sing-practice');
@@ -95,17 +91,13 @@
 <div class="stack exercise">
   <p class="meta">
     <span>{s.enabledPitchClasses.length === 12 ? 'All notes' : `${s.enabledPitchClasses.length} of 12 notes`}</span>
-    <label class="scramble" title="Play random notes before each new note">
-      <input type="checkbox" checked={s.scramble[kind]} onchange={(e) => toggleScramble(e.currentTarget.checked)} />
-      Scramble
-    </label>
     {#if showTally}
       <span aria-label={`This session: ${correct} correct out of ${answered}`}>Session {correct}/{answered}</span>
     {/if}
   </p>
 
   {#key question.id}
-    {#if question.kind === 'identify'}
+    {#if question.kind === 'identify' || question.kind === 'identify-octave'}
       <IdentifyQuestion {question} onresult={onIdentify} onnext={next} />
     {:else}
       <SingQuestion
@@ -129,19 +121,7 @@
     font-size: var(--text-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-  }
-  .scramble {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-    color: var(--text);
-  }
-  .scramble input {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    accent-color: var(--accent);
+    justify-content: space-between;
   }
   @media (orientation: landscape) and (max-height: 500px) {
     .exercise {

@@ -135,6 +135,19 @@
         oninput={(e) => settings.update({ volume: Number(e.currentTarget.value) })}
       />
     </label>
+    <label class="item toggle">
+      <span class="toggle-copy">
+        <strong>Scramble before each new note</strong>
+        <small>Play a brief random run to break relative pitch.</small>
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        class="switch"
+        checked={s.scramble}
+        onchange={(e) => settings.update({ scramble: e.currentTarget.checked })}
+      />
+    </label>
     <label class="field item">
       <span>Note length <output>{s.noteDuration.toFixed(1)} s</output></span>
       <input
@@ -334,6 +347,17 @@
     justify-content: space-between;
     gap: var(--space-3);
     font-weight: 600;
+  }
+
+  .toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .toggle-copy small {
+    color: var(--text-muted);
+    font-weight: 400;
   }
 
   .pcs {

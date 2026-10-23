@@ -1,5 +1,4 @@
 import { ALL_PITCH_CLASSES, NATURAL_PITCH_CLASSES, toPitchClass, type PitchClass, type Spelling } from './music';
-import type { ExerciseKind } from './exercise';
 
 export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
@@ -25,8 +24,8 @@ export interface Settings {
   toleranceCents: number;
   spelling: Spelling;
   historyEnabled: boolean;
-  /** Per exercise: play a burst of random notes before each new question, to break relative pitch. */
-  scramble: Record<ExerciseKind, boolean>;
+  /** Play a burst of random notes before each new exercise question, to break relative pitch. */
+  scramble: boolean;
 }
 
 export const OCTAVE_MIN = 1;
@@ -73,14 +72,13 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   toleranceCents: 50,
   spelling: 'sharps',
   historyEnabled: true,
-  scramble: Object.freeze({ identify: false, 'sing-practice': false, 'sing-test': false }),
+  scramble: false,
 });
 
 export function defaultSettings(): Settings {
   return {
     ...DEFAULT_SETTINGS,
     enabledPitchClasses: [...DEFAULT_SETTINGS.enabledPitchClasses],
-    scramble: { ...DEFAULT_SETTINGS.scramble },
   };
 }
 
@@ -117,7 +115,13 @@ export function sanitizeSettings(input: unknown): Settings {
   let octMax = Math.round(clamp(num(raw.playbackOctaveMax, d.playbackOctaveMax), OCTAVE_MIN, OCTAVE_MAX));
   if (octMin > octMax) [octMin, octMax] = [octMax, octMin];
 
-  const scramble = (typeof raw.scramble === 'object' && raw.scramble !== null ? raw.scramble : {}) as Record<string, unknown>;
+  const legacyScramble =
+    typeof raw.scramble === 'object' && raw.scramble !== null ? (raw.scramble as Record<string, unknown>) : null;
+  const scramble =
+    typeof raw.scramble === 'boolean'
+      ? raw.scramble
+      : legacyScramble !== null &&
+        ['identify', 'sing-practice', 'sing-test'].some((kind) => legacyScramble[kind] === true);
   const { low, high } = normalizeVocalRange(num(raw.vocalLow, d.vocalLow), num(raw.vocalHigh, d.vocalHigh));
 
   return {
@@ -134,11 +138,7 @@ export function sanitizeSettings(input: unknown): Settings {
     toleranceCents: Math.round(clamp(num(raw.toleranceCents, d.toleranceCents), TOLERANCE_MIN, TOLERANCE_MAX)),
     spelling: oneOf(raw.spelling, ['sharps', 'flats'] as const, d.spelling),
     historyEnabled: typeof raw.historyEnabled === 'boolean' ? raw.historyEnabled : d.historyEnabled,
-    scramble: {
-      identify: scramble.identify === true,
-      'sing-practice': scramble['sing-practice'] === true,
-      'sing-test': scramble['sing-test'] === true,
-    },
+    scramble,
   };
 }
 

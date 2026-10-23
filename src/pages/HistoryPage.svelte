@@ -24,6 +24,7 @@
     if (e.outcome === 'no-detection') return 'no steady note detected';
     if (e.answer === null) return '—';
     if (e.exercise === 'identify') return pitchClassName(e.answer as 0, s.spelling);
+    if (e.exercise === 'identify-octave') return `${pitchClassName(e.targetPitchClass, s.spelling)}${e.answer}`;
     return `${noteName(e.answer, s.spelling)}${e.cents !== null ? ` (${signedCents(e.cents)})` : ''}`;
   }
 
@@ -37,7 +38,8 @@
   }
 
   const EXERCISES = [
-    ['identify', 'Identify'],
+    ['identify', 'Identify notes'],
+    ['identify-octave', 'Identify octaves'],
     ['sing-test', 'Sing test'],
   ] as const;
 </script>
@@ -99,9 +101,9 @@
               {e.outcome === 'correct' ? '✓' : e.outcome === 'incorrect' ? '✗' : '?'}
             </span>
             <span class="what">
-              <strong>{e.exercise === 'identify' ? 'Identify' : 'Sing'}</strong>
+              <strong>{e.exercise === 'identify' ? 'Identify notes' : e.exercise === 'identify-octave' ? 'Identify octaves' : 'Sing'}</strong>
               {e.mixed ? '(mixed)' : ''} · target
-              {e.exercise === 'sing-test' && e.policy === 'exact'
+              {e.exercise === 'identify-octave' || (e.exercise === 'sing-test' && e.policy === 'exact')
                 ? noteName(e.targetMidi, s.spelling)
                 : pitchClassName(e.targetPitchClass, s.spelling)} · answer {answerText(e)}
               <span class="visually-hidden">— {e.outcome.replace('-', ' ')}</span>
