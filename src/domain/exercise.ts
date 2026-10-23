@@ -95,6 +95,36 @@ export function createQuestion(
   };
 }
 
+// ---------------------------------------------------------------- scramble
+
+/** E2 … E6: wide enough that no key or register lingers in the ear. */
+export const SCRAMBLE_LOW = 40;
+export const SCRAMBLE_HIGH = 88;
+export const SCRAMBLE_NOTES = 14;
+
+/**
+ * A rapid, atonal run of random notes that washes out the previous pitch, so the
+ * next one can't be judged relative to it. Consecutive notes never share a pitch
+ * class or sit closer than a minor third, and the run never ends on `avoid`
+ * (the upcoming target), which would hand it over for free.
+ */
+export function generateScramble(rng: Rng, avoid?: PitchClass, count = SCRAMBLE_NOTES): number[] {
+  const all: number[] = [];
+  for (let m = SCRAMBLE_LOW; m <= SCRAMBLE_HIGH; m++) all.push(m);
+  const notes: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const prev = notes[i - 1];
+    const last = i === count - 1;
+    const pool = all.filter(
+      (m) =>
+        (prev === undefined || (Math.abs(m - prev) >= 3 && midiToPitchClass(m) !== midiToPitchClass(prev))) &&
+        !(last && midiToPitchClass(m) === avoid),
+    );
+    notes.push(pick(pool, rng));
+  }
+  return notes;
+}
+
 // ---------------------------------------------------------------- evaluation
 
 export interface IdentifyResult {

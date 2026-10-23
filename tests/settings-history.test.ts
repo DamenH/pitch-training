@@ -27,6 +27,15 @@ describe('settings', () => {
     expect(sanitizeSettings({ enabledPitchClasses: [9, 0, 9] }).enabledPitchClasses).toEqual([0, 9]);
   });
 
+  it('keeps the scramble toggle per exercise', () => {
+    expect(sanitizeSettings({ scramble: { identify: true, 'sing-test': 'yes' } }).scramble).toEqual({
+      identify: true,
+      'sing-practice': false,
+      'sing-test': false,
+    });
+    expect(sanitizeSettings({ scramble: 1 }).scramble).toEqual(defaultSettings().scramble);
+  });
+
   it('orders octave ranges and clamps values', () => {
     const s = sanitizeSettings({ playbackOctaveMin: 6, playbackOctaveMax: 2, volume: 5, toleranceCents: -3 });
     expect([s.playbackOctaveMin, s.playbackOctaveMax]).toEqual([2, 6]);

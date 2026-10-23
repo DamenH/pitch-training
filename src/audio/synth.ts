@@ -155,9 +155,16 @@ export function stopAll(): void {
 
 /**
  * Play notes one after another (a single note is a sequence of one).
+ * Notes start `gapSeconds` after the previous one's release, or every `stepSeconds`
+ * when given, letting each ring into the next.
  * Resolves when the last note has finished, or early if interrupted by another call.
  */
-export async function playSequence(frequencies: readonly number[], opts: PlayOptions, gapSeconds = 0.08): Promise<void> {
+export async function playSequence(
+  frequencies: readonly number[],
+  opts: PlayOptions,
+  gapSeconds = 0.08,
+  stepSeconds?: number,
+): Promise<void> {
   stopAll();
   const myGeneration = generation;
   // resumeAudio() runs synchronously inside the user gesture, before any awaits (iOS).
@@ -176,7 +183,7 @@ export async function playSequence(frequencies: readonly number[], opts: PlayOpt
   const ctx = await ctxPromise;
   if (myGeneration !== generation || frequencies.length === 0) return;
 
-  const step = (opts.waveform === 'piano' ? pianoHold(opts) : opts.duration) + release(opts) + gapSeconds;
+  const step = stepSeconds ?? (opts.waveform === 'piano' ? pianoHold(opts) : opts.duration) + release(opts) + gapSeconds;
   let start = ctx.currentTime + 0.03;
   let end = start;
   frequencies.forEach((f, i) => {

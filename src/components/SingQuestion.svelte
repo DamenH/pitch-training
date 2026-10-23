@@ -6,6 +6,7 @@
   import { PitchCapture } from '../domain/pitchCapture';
   import { mic } from '../lib/mic.svelte';
   import { playMidi } from '../lib/playback';
+  import { scramble } from '../lib/scramble.svelte';
   import { settings } from '../lib/settings.svelte';
   import { shouldIgnoreShortcut } from '../lib/keys';
   import { haptic, onPress } from '../lib/native';
@@ -48,7 +49,11 @@
 
   $effect(() => {
     if (mode !== 'test') return;
-    if (mic.status === 'running') {
+    // The microphone hears the scramble too; nothing it plays may count as singing.
+    if (scramble.playing) {
+      mic.resetTracking();
+      capture = recorder.reset(performance.now());
+    } else if (mic.status === 'running') {
       const wasLocked = recorder.state.phase === 'locked';
       const next = recorder.push(mic.live);
       if (!wasLocked && next.phase === 'locked') haptic('tap');

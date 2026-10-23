@@ -59,7 +59,9 @@ export async function verifySinging(page, url) {
   await expect(page.locator('.verdict')).toContainText('No match');
   await expect(page.locator('.detail')).toContainText('C4');
   await expect(page.getByText('Session 0/1', { exact: true })).toBeVisible();
-  await expect(check).toBeDisabled();
+  // Once checked, the answer can't be checked again; the target can be heard instead.
+  await expect(check).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Play note', exact: true })).toBeVisible();
   await record.click();
   await expect(page.getByText('Note locked', { exact: true })).toBeVisible();
   await check.click();
@@ -70,6 +72,19 @@ export async function verifySinging(page, url) {
   await page.getByRole('button', { name: 'Next note', exact: false }).click();
   await expect(check).toBeDisabled();
   await expect(record).toHaveCount(0);
+  // The scramble sounds through the speakers; a steady voice is ignored until it ends.
+  const scramble = page.getByRole('checkbox', { name: 'Scramble', exact: true });
+  await scramble.check();
+  await setSound(440);
+  await expect(page.getByText('Note locked', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next note', exact: false }).click();
+  const quietUntil = Date.now() + 1500;
+  while (Date.now() < quietUntil) {
+    assert.equal(await progress.getAttribute('value'), '0', 'Capture must pause while the scramble plays');
+    await page.waitForTimeout(100);
+  }
+  await expect(page.getByText('Note locked', { exact: true })).toBeVisible({ timeout: 6000 });
+  await scramble.uncheck();
   // Practice keeps its live meter, sharing the detector but not the capture workflow.
   await page.goto(`${url}#/sing-practice`);
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
@@ -89,7 +104,45 @@ export async function verifySinging(page, url) {
   await expect(page.locator('.recent')).toContainText('C4');
   await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Sing$/ }) })).toHaveCount(1);
   assert.equal(await page.evaluate(() => Object.keys(localStorage).some((key) => key.endsWith('history/v1'))), true);
-  console.log('  singing: progress, target-independent locking, re-record, frozen scoring, retention, next-question reset and history passed');
+  console.log('  singing: progress, target-independent locking, re-record, frozen scoring, retention, next-question reset, scramble pause and history passed');
+}
+
+export async function verifyScramble(page, url) {
+  await page.goto(`${url}#/identify`);
+  await page.evaluate(() => {
+    globalThis.scrambleStarts = 0;
+    for (const node of [AudioBufferSourceNode, OscillatorNode]) {
+      const start = node.prototype.start;
+      node.prototype.start = function (...args) {
+        globalThis.scrambleStarts++;
+        return start.apply(this, args);
+      };
+    }
+  });
+  const scramble = page.getByRole('checkbox', { name: 'Scramble', exact: true });
+  await expect(scramble).not.toBeChecked();
+  const starts = () => page.evaluate(() => globalThis.scrambleStarts);
+  const answerAndContinue = async () => {
+    await page.getByRole('button', { name: /Play note|Replay note/ }).click();
+    await page.locator('.piano button:not([disabled])').first().click();
+    await page.getByRole('button', { name: 'Submit answer', exact: true }).click();
+    await page.getByRole('button', { name: 'Next note', exact: false }).click();
+  };
+  await answerAndContinue();
+  await page.waitForTimeout(800);
+  const plain = await starts();
+  assert.equal(plain, 1, 'Without scramble, Next note plays nothing');
+  await scramble.check();
+  await answerAndContinue();
+  await expect.poll(starts, { timeout: 5000 }).toBeGreaterThanOrEqual(plain + 1 + 14);
+  // The setting is remembered, and only for this exercise.
+  await page.reload();
+  await expect(scramble).toBeChecked();
+  await page.goto(`${url}#/sing-practice`);
+  await expect(scramble).not.toBeChecked();
+  await page.goto(`${url}#/identify`);
+  await scramble.uncheck();
+  console.log('  scramble: plays a run on Next note only when enabled, remembered per exercise');
 }
 
 export async function verifyLayout(page, url) {

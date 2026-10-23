@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { candidateNotes, createQuestion, generateTarget, type Rng } from '../src/domain/exercise';
+import { candidateNotes, createQuestion, generateScramble, generateTarget, SCRAMBLE_HIGH, SCRAMBLE_LOW, SCRAMBLE_NOTES, type Rng } from '../src/domain/exercise';
 import { midiToOctave, midiToPitchClass, type PitchClass } from '../src/domain/music';
 import { defaultSettings, type Settings } from '../src/domain/settings';
 
@@ -108,4 +108,24 @@ describe('createQuestion', () => {
     expect(a.id).not.toBe(b.id);
   });
 
+});
+
+describe('generateScramble', () => {
+  it('plays a wide, leaping run that never ends on the upcoming target', () => {
+    const rng = seeded(11);
+    for (let trial = 0; trial < 200; trial++) {
+      const avoid = (trial % 12) as PitchClass;
+      const notes = generateScramble(rng, avoid);
+      expect(notes).toHaveLength(SCRAMBLE_NOTES);
+      for (const [i, m] of notes.entries()) {
+        expect(m).toBeGreaterThanOrEqual(SCRAMBLE_LOW);
+        expect(m).toBeLessThanOrEqual(SCRAMBLE_HIGH);
+        if (i > 0) {
+          expect(Math.abs(m - notes[i - 1]!)).toBeGreaterThanOrEqual(3);
+          expect(midiToPitchClass(m)).not.toBe(midiToPitchClass(notes[i - 1]!));
+        }
+      }
+      expect(midiToPitchClass(notes.at(-1)!)).not.toBe(avoid);
+    }
+  });
 });

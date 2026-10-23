@@ -13,7 +13,7 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { flushSync, onDestroy, untrack } from 'svelte';
   import { createQuestion, type IdentifyResult, type SingResult } from '../domain/exercise';
   import { entryFromResult } from '../domain/history';
   import { stopAll } from '../audio/synth';
@@ -21,6 +21,7 @@
   import { history } from '../lib/history.svelte';
   import { mic } from '../lib/mic.svelte';
   import { preloadPlaybackRange } from '../lib/playback';
+  import { playScramble } from '../lib/scramble.svelte';
   import IdentifyQuestion from '../components/IdentifyQuestion.svelte';
   import SingQuestion from '../components/SingQuestion.svelte';
 
@@ -49,7 +50,15 @@
   let scored = false;
   function next() {
     scored = false;
-    question = makeQuestion(question);
+    // Swap the question first: the old one stops its sounds as it goes.
+    flushSync(() => {
+      question = makeQuestion(question);
+    });
+    if (s.scramble[kind]) void playScramble(question.targetPitchClass);
+  }
+
+  function toggleScramble(on: boolean) {
+    settings.update({ scramble: { ...s.scramble, [kind]: on } });
   }
 
   function onIdentify(result: IdentifyResult, responseMs: number) {
@@ -86,6 +95,10 @@
 <div class="stack exercise">
   <p class="meta">
     <span>{s.enabledPitchClasses.length === 12 ? 'All notes' : `${s.enabledPitchClasses.length} of 12 notes`}</span>
+    <label class="scramble" title="Play random notes before each new note">
+      <input type="checkbox" checked={s.scramble[kind]} onchange={(e) => toggleScramble(e.currentTarget.checked)} />
+      Scramble
+    </label>
     {#if showTally}
       <span aria-label={`This session: ${correct} correct out of ${answered}`}>Session {correct}/{answered}</span>
     {/if}
@@ -111,11 +124,24 @@
   }
   .meta {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
     gap: var(--space-3);
     font-size: var(--text-sm);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  .scramble {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: var(--text);
+  }
+  .scramble input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
   }
   @media (orientation: landscape) and (max-height: 500px) {
     .exercise {
