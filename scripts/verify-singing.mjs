@@ -73,8 +73,11 @@ export async function verifySinging(page, url) {
   await expect(check).toBeDisabled();
   await expect(record).toHaveCount(0);
   // The scramble sounds through the speakers; a steady voice is ignored until it ends.
-  const scramble = page.getByRole('checkbox', { name: 'Scramble', exact: true });
+  await page.goto(`${url}#/settings`);
+  const scramble = page.getByRole('switch', { name: /Scramble before each new note/ });
   await scramble.check();
+  await page.goto(`${url}#/sing-test`);
+  await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await setSound(440);
   await expect(page.getByText('Note locked', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next note', exact: false }).click();
@@ -84,6 +87,7 @@ export async function verifySinging(page, url) {
     await page.waitForTimeout(100);
   }
   await expect(page.getByText('Note locked', { exact: true })).toBeVisible({ timeout: 6000 });
+  await page.goto(`${url}#/settings`);
   await scramble.uncheck();
   // Practice keeps its live meter, sharing the detector but not the capture workflow.
   await page.goto(`${url}#/sing-practice`);
@@ -108,7 +112,9 @@ export async function verifySinging(page, url) {
 }
 
 export async function verifyScramble(page, url) {
-  await page.goto(`${url}#/identify`);
+  await page.goto(`${url}#/settings`);
+  const scramble = page.getByRole('switch', { name: /Scramble before each new note/ });
+  await expect(scramble).not.toBeChecked();
   await page.evaluate(() => {
     globalThis.scrambleStarts = 0;
     for (const node of [AudioBufferSourceNode, OscillatorNode]) {
@@ -119,8 +125,7 @@ export async function verifyScramble(page, url) {
       };
     }
   });
-  const scramble = page.getByRole('checkbox', { name: 'Scramble', exact: true });
-  await expect(scramble).not.toBeChecked();
+  await page.goto(`${url}#/identify`);
   const starts = () => page.evaluate(() => globalThis.scrambleStarts);
   const answerAndContinue = async () => {
     await page.getByRole('button', { name: /Play note|Replay note/ }).click();
@@ -132,17 +137,21 @@ export async function verifyScramble(page, url) {
   await page.waitForTimeout(800);
   const plain = await starts();
   assert.equal(plain, 1, 'Without scramble, Next note plays nothing');
+  await page.goto(`${url}#/settings`);
   await scramble.check();
+  await page.goto(`${url}#/identify`);
   await answerAndContinue();
   await expect.poll(starts, { timeout: 5000 }).toBeGreaterThanOrEqual(plain + 1 + 14);
-  // The setting is remembered, and only for this exercise.
+  // The app-wide setting survives reloads and is managed only in Settings.
   await page.reload();
+  await page.goto(`${url}#/settings`);
   await expect(scramble).toBeChecked();
   await page.goto(`${url}#/sing-practice`);
-  await expect(scramble).not.toBeChecked();
-  await page.goto(`${url}#/identify`);
+  await expect(page.getByText('Scramble', { exact: true })).toHaveCount(0);
+  await page.goto(`${url}#/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await scramble.uncheck();
-  console.log('  scramble: plays a run on Next note only when enabled, remembered per exercise');
+  console.log('  scramble: plays a run on Next note only when enabled and persists as one app-wide setting');
 }
 
 export async function verifyLayout(page, url) {

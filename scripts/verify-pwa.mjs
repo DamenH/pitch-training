@@ -109,7 +109,7 @@ try {
     // Every octave remains playable without fetching a new piano sample.
     await page.goto(`${url}#/reference`);
     for (const octave of ['1', '7']) {
-      await page.getByRole('radio', { name: octave, exact: true }).check();
+      await page.getByRole('button', { name: `Octave ${octave}`, exact: true }).click();
       await page.locator('.piano button').first().click();
     }
     await page.reload();

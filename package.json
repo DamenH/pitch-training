@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "icons": "node scripts/generate-icons.mjs",
     "build": "vite build",
     "build:single": "node scripts/build-single.mjs",
     "preview": "vite preview",
