@@ -3,10 +3,10 @@
   <!-- Adapted from Font Awesome Free's “music” icon, CC BY 4.0. -->
   <path
     id="mark"
-    data-optical-center-x="30.75"
+    data-optical-center-x="30.5"
     data-optical-center-y="32"
     fill="#f7f6f2"
-    transform="translate(14.25 15.5) scale(.06875)"
+    transform="translate(15.14 16.64) scale(.064)"
     d="M468 7c7.6 6.1 12 15.3 12 25v304c0 44.2-43 80-96 80s-96-35.8-96-80 43-80 96-80c11.2 0 22 1.6 32 4.6V143.9l-224 49.8V400c0 44.2-43 80-96 80S0 444.2 0 400s43-80 96-80c11.2 0 22 1.6 32 4.6V96c0-15 10.4-28 25.1-31.2l288-64c9.5-2.1 19.4.2 27 6.3z"
   />
 </svg>
