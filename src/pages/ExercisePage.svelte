@@ -48,13 +48,17 @@
 
   // Only the first checked capture affects the session and persisted history.
   let scored = false;
-  function next() {
+  let identify = $state<IdentifyQuestion>();
+  async function next() {
     scored = false;
     // Swap the question first: the old one stops its sounds as it goes.
     flushSync(() => {
       question = makeQuestion(question);
     });
-    if (s.scramble) void playScramble(question.targetPitchClass);
+    const id = question.id;
+    if (s.scramble) await playScramble(question.targetPitchClass);
+    // Play the new round straight away, once any scramble has finished.
+    if (question.id === id) identify?.autoplay();
   }
 
   function onIdentify(result: IdentifyAnyResult, responseMs: number) {
@@ -98,7 +102,7 @@
 
   {#key question.id}
     {#if question.kind === 'identify' || question.kind === 'identify-octave' || question.kind === 'identify-chroma'}
-      <IdentifyQuestion {question} onresult={onIdentify} onnext={next} />
+      <IdentifyQuestion bind:this={identify} {question} onresult={onIdentify} onnext={next} />
     {:else}
       <SingQuestion
         {question}

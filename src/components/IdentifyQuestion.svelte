@@ -71,6 +71,11 @@
     void playMidi(midi);
   }
 
+  /** Start a new round without a tap; single-play mode leaves its one play to the user. */
+  export function autoplay() {
+    if (plays === 0 && s.replayPolicy === 'unlimited') play();
+  }
+
   function submit() {
     if (result) return;
     if (plays === 0) {
@@ -214,12 +219,11 @@
     />
   {/if}
 
-  {#if notice && !result}
-    <p class="notice warn" role="status">{notice}</p>
-  {/if}
-
+  <!-- Fixed height, so the answer appearing doesn't move the button below it. -->
   <div class="feedback" aria-live="polite">
-    {#if result}
+    {#if notice && !result}
+      <p class="notice warn" role="status">{notice}</p>
+    {:else if result}
       <div class="notice verdict" class:good={result.correct} class:bad={!result.correct}>
         <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
         <p class="detail">
@@ -363,13 +367,13 @@
     display: flex;
     flex-direction: column;
   }
+  .feedback {
+    min-height: 88px;
+  }
 
   @media (orientation: portrait) and (max-width: 899px) {
     .identify {
       flex: 1;
-    }
-    .feedback {
-      min-height: 88px;
     }
     .action-bar {
       position: fixed;
