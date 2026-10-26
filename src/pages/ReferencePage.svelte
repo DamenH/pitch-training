@@ -13,7 +13,7 @@
     noteToMidi,
     type PitchClass,
   } from '../domain/music';
-  import { OCTAVE_MAX, OCTAVE_MIN } from '../domain/settings';
+  import { OCTAVE_MAX, OCTAVE_MIN, visibleOctaves } from '../domain/settings';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { playMidiPoly, preloadNotes } from '../lib/playback';
@@ -31,20 +31,27 @@
   let held = $state<number[]>([]);
   let scoreNotes = $state<number[]>([]);
   const keyboardNotes = new Map<string, number>();
-  const active = $derived([...new Set([...held, ...scoreNotes].filter((m) => midiToOctave(m) === octave).map(midiToPitchClass))]);
+  // Extra octaves around the chosen one; narrow screens hide them (see the styles below).
+  const shown = $derived(visibleOctaves(octave, s.referenceOctaves));
+  const sounding = $derived([...held, ...scoreNotes]);
 
-  // Fetch samples for the visible octave (and its neighbours' edges) ahead of the first tap.
+  function activeIn(o: number): PitchClass[] {
+    return [...new Set(sounding.filter((m) => midiToOctave(m) === o).map(midiToPitchClass))];
+  }
+
+  function selectedIn(o: number): PitchClass | null {
+    return selectedMidi !== null && midiToOctave(selectedMidi) === o ? midiToPitchClass(selectedMidi) : null;
+  }
+
+  // Fetch samples for the visible octaves (and their neighbours' edges) ahead of the first tap.
   $effect(() => {
     void s.waveform;
-    preloadNotes((octave + 1) * 12 - 1, (octave + 1) * 12 + 12);
+    const low = Math.min(...shown), high = Math.max(...shown);
+    preloadNotes((low + 1) * 12 - 1, (high + 1) * 12 + 12);
   });
 
-  const selectedPc = $derived<PitchClass | null>(
-    selectedMidi !== null && midiToOctave(selectedMidi) === octave ? midiToPitchClass(selectedMidi) : null,
-  );
-
-  function press(pc: PitchClass) {
-    const midi = noteToMidi(pc, octave);
+  function press(pc: PitchClass, o = octave) {
+    const midi = noteToMidi(pc, o);
     selectedMidi = midi;
     if (held.includes(midi)) return;
     playMidiPoly(midi);
@@ -100,13 +107,19 @@
 
 <svelte:window {onkeydown} {onkeyup} onblur={releaseKeys} />
 
-<div class="reference">
+<div class="reference" class:multi={shown.length > 1}>
   <div class="stack instrument">
     <section class="stack keyboard" aria-labelledby="kb-heading">
       <h2 id="kb-heading" class="visually-hidden">Keyboard</h2>
       <OctavePicker {octaves} value={octave} onselect={setOctave} />
-      <Piano {octave} selected={selectedPc} spelling={s.spelling} onpress={press}
-        onrelease={(pc) => releaseMidi(noteToMidi(pc, octave))} {active} />
+      <div class="keys">
+        {#each shown as o (o)}
+          <div class="octave" class:current={o === octave}>
+            <Piano octave={o} selected={selectedIn(o)} spelling={s.spelling} onpress={(pc) => press(pc, o)}
+              onrelease={(pc) => releaseMidi(noteToMidi(pc, o))} active={activeIn(o)} />
+          </div>
+        {/each}
+      </div>
       <p class="readout" aria-live="polite">
         {#if selectedMidi !== null}
           <span class="note">{noteName(selectedMidi, s.spelling)}</span>
@@ -143,10 +156,35 @@
     gap: 0;
   }
 
-  .readout {
+  .readout,
+  .keys {
     width: 100%;
     max-width: 720px;
     margin-inline: auto;
+  }
+
+  .keys {
+    display: flex;
+  }
+
+  .octave {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Several octaves need room: below that, only the chosen octave is shown. */
+  @container (max-width: 719px) {
+    .octave:not(.current) {
+      display: none;
+    }
+  }
+
+  @container (min-width: 720px) {
+    .multi .keys,
+    .multi .readout,
+    .multi .keyboard :global(.octaves) {
+      max-width: none;
+    }
   }
 
   /* Height reserved so nothing below moves when a key is first pressed. */
@@ -178,9 +216,9 @@
     gap: var(--space-3);
   }
 
-  /* Wide windows: the instrument on the left, pieces alongside. */
+  /* Wide windows: the instrument on the left, pieces alongside (below a multi-octave keyboard). */
   @container (min-width: 860px) {
-    .reference {
+    .reference:not(.multi) {
       grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
       align-items: start;
     }

@@ -24,6 +24,7 @@
     type ScoringPolicy,
     type ChromaContrast,
     type ReplayOctave,
+    type ReferenceOctaves,
     type ReplayPolicy,
     type Waveform,
   } from '../domain/settings';
@@ -83,6 +84,7 @@
     ['fifth', 'Fifth'],
     ['mixed', 'Mixed'],
   ];
+  const KEYBOARD_SIZES: [ReferenceOctaves, string][] = [[1, '1 octave'], [2, '2 octaves'], [3, '3 octaves']];
   const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
 </script>
 
@@ -308,6 +310,21 @@
         </label>
       </div>
     </fieldset>
+    </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Reference keyboard</legend>
+      <div class="segmented">
+        {#each KEYBOARD_SIZES as [value, label] (value)}
+          <label class:checked={s.referenceOctaves === value}>
+            <input type="radio" name="reference-octaves" {value} checked={s.referenceOctaves === value}
+              onchange={() => settings.update({ referenceOctaves: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">Extra octaves sit around the one you pick, on wide screens only.</p>
     </div>
     <label class="item toggle">
       <span>Keep history</span>

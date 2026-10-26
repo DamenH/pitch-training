@@ -4,6 +4,7 @@ import {
   normalizeVocalRange,
   sanitizeSettings,
   togglePitchClass,
+  visibleOctaves,
   VOCAL_MIN_SPAN,
 } from '../src/domain/settings';
 import { entryFromResult, sanitizeHistory, summarize, type HistoryEntry } from '../src/domain/history';
@@ -33,6 +34,21 @@ describe('settings', () => {
     expect(sanitizeSettings({ scramble: { identify: true } }).scramble).toBe(true);
     expect(sanitizeSettings({ scramble: { identify: false, 'sing-test': false } }).scramble).toBe(false);
     expect(sanitizeSettings({ scramble: 'yes' }).scramble).toBe(false);
+  });
+
+  it('validates the reference keyboard size', () => {
+    expect(sanitizeSettings({ referenceOctaves: 3 }).referenceOctaves).toBe(3);
+    expect(sanitizeSettings({ referenceOctaves: 4 }).referenceOctaves).toBe(1);
+    expect(sanitizeSettings({ referenceOctaves: '2' }).referenceOctaves).toBe(1);
+  });
+
+  it('centres the visible reference octaves on the chosen one, within range', () => {
+    expect(visibleOctaves(4, 1)).toEqual([4]);
+    expect(visibleOctaves(4, 2)).toEqual([4, 5]);
+    expect(visibleOctaves(4, 3)).toEqual([3, 4, 5]);
+    expect(visibleOctaves(1, 3)).toEqual([1, 2, 3]);
+    expect(visibleOctaves(7, 3)).toEqual([5, 6, 7]);
+    expect(visibleOctaves(7, 2)).toEqual([6, 7]);
   });
 
   it('validates the replay octave and chroma contrast options', () => {

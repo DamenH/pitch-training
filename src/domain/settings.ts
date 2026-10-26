@@ -7,6 +7,8 @@ export type Waveform = 'piano' | 'sine' | 'triangle' | 'warm';
 export type ReplayOctave = 'same' | 'random';
 /** Identify chroma: how far a "different" note is from the first note. */
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
+/** Reference keyboard: how many octaves to show side by side on wide screens. */
+export type ReferenceOctaves = 1 | 2 | 3;
 
 export interface Settings {
   /** Pitch classes that exercises may use. Never empty. */
@@ -32,6 +34,7 @@ export interface Settings {
   historyEnabled: boolean;
   /** Play a burst of random notes before each new exercise question, to break relative pitch. */
   scramble: boolean;
+  referenceOctaves: ReferenceOctaves;
 }
 
 export const OCTAVE_MIN = 1;
@@ -81,6 +84,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   spelling: 'sharps',
   historyEnabled: true,
   scramble: false,
+  referenceOctaves: 1,
 });
 
 export function defaultSettings(): Settings {
@@ -149,7 +153,18 @@ export function sanitizeSettings(input: unknown): Settings {
     spelling: oneOf(raw.spelling, ['sharps', 'flats'] as const, d.spelling),
     historyEnabled: typeof raw.historyEnabled === 'boolean' ? raw.historyEnabled : d.historyEnabled,
     scramble,
+    referenceOctaves: ([1, 2, 3] as const).find((n) => n === raw.referenceOctaves) ?? d.referenceOctaves,
   };
+}
+
+/**
+ * The octaves shown on the reference keyboard: `count` consecutive octaves containing `selected`,
+ * centred on it where possible and shifted inwards at the ends of the playable range.
+ */
+export function visibleOctaves(selected: number, count: number): number[] {
+  const n = clamp(Math.round(count), 1, OCTAVE_MAX - OCTAVE_MIN + 1);
+  const start = clamp(selected - Math.floor((n - 1) / 2), OCTAVE_MIN, OCTAVE_MAX - n + 1);
+  return Array.from({ length: n }, (_, i) => start + i);
 }
 
 /** Clamp a vocal range into bounds and widen it to at least one octave. */
