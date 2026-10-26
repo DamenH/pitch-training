@@ -25,7 +25,18 @@
     if (e.answer === null) return '—';
     if (e.exercise === 'identify') return pitchClassName(e.answer as 0, s.spelling);
     if (e.exercise === 'identify-octave') return `${pitchClassName(e.targetPitchClass, s.spelling)}${e.answer}`;
+    if (e.exercise === 'identify-chroma') return e.answer === 1 ? 'same' : 'different';
     return `${noteName(e.answer, s.spelling)}${e.cents !== null ? ` (${signedCents(e.cents)})` : ''}`;
+  }
+
+  function targetText(e: HistoryEntry): string {
+    if (e.exercise === 'identify-chroma') {
+      const second = e.comparisonMidi === null ? '?' : noteName(e.comparisonMidi, s.spelling);
+      return `${noteName(e.targetMidi, s.spelling)} → ${second}`;
+    }
+    return e.exercise === 'identify-octave' || (e.exercise === 'sing-test' && e.policy === 'exact')
+      ? noteName(e.targetMidi, s.spelling)
+      : pitchClassName(e.targetPitchClass, s.spelling);
   }
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -40,8 +51,16 @@
   const EXERCISES = [
     ['identify', 'Identify notes'],
     ['identify-octave', 'Identify octaves'],
+    ['identify-chroma', 'Identify chroma'],
     ['sing-test', 'Sing test'],
   ] as const;
+
+  const EXERCISE_NAMES: Record<HistoryEntry['exercise'], string> = {
+    identify: 'Identify notes',
+    'identify-octave': 'Identify octaves',
+    'identify-chroma': 'Identify chroma',
+    'sing-test': 'Sing',
+  };
 </script>
 
 <div class="history">
@@ -101,11 +120,9 @@
               {e.outcome === 'correct' ? '✓' : e.outcome === 'incorrect' ? '✗' : '?'}
             </span>
             <span class="what">
-              <strong>{e.exercise === 'identify' ? 'Identify notes' : e.exercise === 'identify-octave' ? 'Identify octaves' : 'Sing'}</strong>
+              <strong>{EXERCISE_NAMES[e.exercise]}</strong>
               {e.mixed ? '(mixed)' : ''} · target
-              {e.exercise === 'identify-octave' || (e.exercise === 'sing-test' && e.policy === 'exact')
-                ? noteName(e.targetMidi, s.spelling)
-                : pitchClassName(e.targetPitchClass, s.spelling)} · answer {answerText(e)}
+              {targetText(e)} · answer {answerText(e)}
               <span class="visually-hidden">— {e.outcome.replace('-', ' ')}</span>
             </span>
             <span class="when muted small">{dateFmt.format(new Date(e.date))} · {secs(e.responseMs)}</span>

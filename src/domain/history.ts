@@ -2,7 +2,8 @@ import { ALL_PITCH_CLASSES, toPitchClass, type PitchClass } from './music';
 import type { ExerciseResult, Question } from './exercise';
 import type { ScoringPolicy } from './settings';
 
-export type HistoryExercise = 'identify' | 'identify-octave' | 'sing-test';
+export type HistoryExercise = 'identify' | 'identify-octave' | 'identify-chroma' | 'sing-test';
+const HISTORY_EXERCISES: readonly HistoryExercise[] = ['identify', 'identify-octave', 'identify-chroma', 'sing-test'];
 export type HistoryOutcome = 'correct' | 'incorrect' | 'no-detection';
 
 export interface HistoryEntry {
@@ -14,8 +15,10 @@ export interface HistoryEntry {
   targetMidi: number;
   targetPitchClass: PitchClass;
   outcome: HistoryOutcome;
-  /** Identify notes: pitch class. Identify octaves: octave number. Sing: nearest MIDI note. */
+  /** Identify notes: pitch class. Identify octaves: octave number. Identify chroma: 1 = same, 0 = different. Sing: nearest MIDI note. */
   answer: number | null;
+  /** Identify chroma only: the second note of the pair. */
+  comparisonMidi: number | null;
   /** Sing only: signed deviation from the reference, in cents. */
   cents: number | null;
   policy: ScoringPolicy | null;
@@ -33,6 +36,7 @@ export function entryFromResult(
     mixed: opts.mixed,
     targetMidi: question.targetMidi,
     targetPitchClass: question.targetPitchClass,
+    comparisonMidi: null,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
   if (result.kind === 'identify') {
@@ -51,6 +55,17 @@ export function entryFromResult(
       exercise: 'identify-octave',
       outcome: result.correct ? 'correct' : 'incorrect',
       answer: result.answer,
+      cents: null,
+      policy: null,
+    };
+  }
+  if (result.kind === 'identify-chroma') {
+    return {
+      ...common,
+      exercise: 'identify-chroma',
+      outcome: result.correct ? 'correct' : 'incorrect',
+      answer: result.answer === 'same' ? 1 : 0,
+      comparisonMidi: result.comparisonMidi,
       cents: null,
       policy: null,
     };
@@ -105,13 +120,16 @@ function tally(entries: readonly HistoryEntry[]): Tally {
 }
 
 export function summarize(entries: readonly HistoryEntry[]): HistorySummary {
+  // Chroma answers say "same" or "different", not which note it was, so they don't count towards a note.
+  const byNote = entries.filter((e) => e.exercise !== 'identify-chroma');
   const byPitchClass = {} as Record<PitchClass, Tally>;
-  for (const pc of ALL_PITCH_CLASSES) byPitchClass[pc] = tally(entries.filter((e) => e.targetPitchClass === pc));
+  for (const pc of ALL_PITCH_CLASSES) byPitchClass[pc] = tally(byNote.filter((e) => e.targetPitchClass === pc));
   return {
     overall: tally(entries),
     byExercise: {
       identify: tally(entries.filter((e) => e.exercise === 'identify')),
       'identify-octave': tally(entries.filter((e) => e.exercise === 'identify-octave')),
+      'identify-chroma': tally(entries.filter((e) => e.exercise === 'identify-chroma')),
       'sing-test': tally(entries.filter((e) => e.exercise === 'sing-test')),
     },
     byPitchClass,
@@ -127,7 +145,7 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
     const e = raw as Record<string, unknown>;
     if (
       typeof e.date !== 'string' ||
-      (e.exercise !== 'identify' && e.exercise !== 'identify-octave' && e.exercise !== 'sing-test') ||
+      !HISTORY_EXERCISES.includes(e.exercise as HistoryExercise) ||
       (e.outcome !== 'correct' && e.outcome !== 'incorrect' && e.outcome !== 'no-detection') ||
       typeof e.targetMidi !== 'number' ||
       typeof e.responseMs !== 'number'
@@ -136,12 +154,13 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
     }
     out.push({
       date: e.date,
-      exercise: e.exercise,
+      exercise: e.exercise as HistoryExercise,
       mixed: e.mixed === true,
       targetMidi: e.targetMidi,
       targetPitchClass: toPitchClass(e.targetMidi),
       outcome: e.outcome,
       answer: typeof e.answer === 'number' ? e.answer : null,
+      comparisonMidi: typeof e.comparisonMidi === 'number' ? e.comparisonMidi : null,
       cents: typeof e.cents === 'number' ? e.cents : null,
       policy: e.policy === 'exact' || e.policy === 'pitch-class' ? e.policy : null,
       responseMs: e.responseMs,

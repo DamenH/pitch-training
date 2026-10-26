@@ -35,6 +35,17 @@ describe('settings', () => {
     expect(sanitizeSettings({ scramble: 'yes' }).scramble).toBe(false);
   });
 
+  it('validates the replay octave and chroma contrast options', () => {
+    expect(sanitizeSettings({ replayOctave: 'random', chromaContrast: 'fifth' })).toMatchObject({
+      replayOctave: 'random',
+      chromaContrast: 'fifth',
+    });
+    expect(sanitizeSettings({ replayOctave: 'loud', chromaContrast: 7 })).toMatchObject({
+      replayOctave: 'same',
+      chromaContrast: 'far',
+    });
+  });
+
   it('orders octave ranges and clamps values', () => {
     const s = sanitizeSettings({ playbackOctaveMin: 6, playbackOctaveMax: 2, volume: 5, toleranceCents: -3 });
     expect([s.playbackOctaveMin, s.playbackOctaveMax]).toEqual([2, 6]);
@@ -82,5 +93,19 @@ describe('history', () => {
     expect(entry).toMatchObject({ exercise: 'identify-octave', answer: 3, outcome: 'incorrect' });
     expect(sanitizeHistory([entry])).toEqual([entry]);
     expect(summarize([entry]).byExercise['identify-octave']).toMatchObject({ answered: 1, incorrect: 1 });
+  });
+
+  it('stores chroma pairs and keeps them out of the per-note tally', () => {
+    const chromaQuestion = { ...q, kind: 'identify-chroma' as const, targetMidi: 50, targetPitchClass: 2 as const, comparisonMidi: 74 };
+    const entry = entryFromResult(
+      chromaQuestion,
+      { kind: 'identify-chroma', targetMidi: 50, comparisonMidi: 74, answer: 'same', correct: true },
+      { mixed: false, responseMs: 900 },
+    );
+    expect(entry).toMatchObject({ exercise: 'identify-chroma', answer: 1, comparisonMidi: 74, outcome: 'correct' });
+    expect(sanitizeHistory([entry])).toEqual([entry]);
+    const summary = summarize([entry]);
+    expect(summary.byExercise['identify-chroma']).toMatchObject({ answered: 1, correct: 1 });
+    expect(summary.byPitchClass[2].answered).toBe(0);
   });
 });

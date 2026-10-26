@@ -14,7 +14,7 @@
 
 <script lang="ts">
   import { flushSync, onDestroy, untrack } from 'svelte';
-  import { createQuestion, type IdentifyOctaveResult, type IdentifyResult, type SingResult } from '../domain/exercise';
+  import { createQuestion, type IdentifyAnyResult, type SingResult } from '../domain/exercise';
   import { entryFromResult } from '../domain/history';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
@@ -57,7 +57,7 @@
     if (s.scramble) void playScramble(question.targetPitchClass);
   }
 
-  function onIdentify(result: IdentifyResult | IdentifyOctaveResult, responseMs: number) {
+  function onIdentify(result: IdentifyAnyResult, responseMs: number) {
     scored = true;
     answered += 1;
     if (result.correct) correct += 1;
@@ -82,7 +82,7 @@
 
   $effect(() => {
     void [s.waveform, s.playbackOctaveMin, s.playbackOctaveMax];
-    if (kind === 'identify' || kind === 'identify-octave') preloadPlaybackRange();
+    if (kind === 'identify' || kind === 'identify-octave' || kind === 'identify-chroma') preloadPlaybackRange();
   });
 
   const showTally = $derived(question.kind !== 'sing-practice');
@@ -97,7 +97,7 @@
   </p>
 
   {#key question.id}
-    {#if question.kind === 'identify' || question.kind === 'identify-octave'}
+    {#if question.kind === 'identify' || question.kind === 'identify-octave' || question.kind === 'identify-chroma'}
       <IdentifyQuestion {question} onresult={onIdentify} onnext={next} />
     {:else}
       <SingQuestion

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { comparePitch, evaluateIdentify, evaluateIdentifyOctave, evaluateSing, type Question } from '../src/domain/exercise';
+import { comparePitch, evaluateIdentify, evaluateIdentifyChroma, evaluateIdentifyOctave, evaluateSing, type Question } from '../src/domain/exercise';
 import { frequencyToMidi, midiToFrequency } from '../src/domain/music';
 import type { StablePitch } from '../src/domain/pitch';
 import type { ScoringPolicy } from '../src/domain/settings';
@@ -114,5 +114,13 @@ describe('evaluateIdentify', () => {
     expect(evaluateIdentifyOctave({ ...question(59), kind: 'identify-octave' }, 3).correct).toBe(true);
     expect(evaluateIdentifyOctave({ ...question(60), kind: 'identify-octave' }, 3).correct).toBe(false);
     expect(evaluateIdentifyOctave({ ...question(60), kind: 'identify-octave' }, 4).correct).toBe(true);
+  });
+
+  it('scores chroma pairs by pitch class, whatever the octaves', () => {
+    const q = { ...question(50), kind: 'identify-chroma' as const, comparisonMidi: 74 };
+    expect(evaluateIdentifyChroma(q, 'same').correct).toBe(true);
+    expect(evaluateIdentifyChroma(q, 'different').correct).toBe(false);
+    const fifth = { ...q, comparisonMidi: 81 };
+    expect(evaluateIdentifyChroma(fifth, 'different')).toMatchObject({ correct: true, comparisonMidi: 81 });
   });
 });

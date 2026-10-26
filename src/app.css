@@ -13,6 +13,8 @@
   --octave: #6f4b9b;
   --octave-text: #ffffff;
   --octave-soft: #ece4f5;
+  --chroma: #9a4a1f;
+  --chroma-text: #ffffff;
   --good: #1f6b3a;
   --good-soft: #dcefe2;
   --bad: #a3322b;
@@ -93,6 +95,8 @@
     --octave: #c0a3ed;
     --octave-text: #1a1026;
     --octave-soft: #332743;
+    --chroma: #f0a77a;
+    --chroma-text: #2a1308;
     --good: #7fd29a;
     --good-soft: #1d3324;
     --bad: #f0928a;

@@ -22,6 +22,8 @@
     VOCAL_MIDI_MIN,
     VOCAL_PRESETS,
     type ScoringPolicy,
+    type ChromaContrast,
+    type ReplayOctave,
     type ReplayPolicy,
     type Waveform,
   } from '../domain/settings';
@@ -74,6 +76,13 @@
   }
 
   const REPLAYS: [ReplayPolicy, string][] = [['unlimited', 'Unlimited'], ['single', 'Single play']];
+  const REPLAY_OCTAVES: [ReplayOctave, string][] = [['same', 'Same octave'], ['random', 'Random octave']];
+  const CONTRASTS: [ChromaContrast, string][] = [
+    ['far', 'Far apart'],
+    ['semitone', 'Semitone'],
+    ['fifth', 'Fifth'],
+    ['mixed', 'Mixed'],
+  ];
   const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
 </script>
 
@@ -201,6 +210,36 @@
       </div>
     </fieldset>
     </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Notes mode: replay in</legend>
+      <div class="segmented">
+        {#each REPLAY_OCTAVES as [value, label] (value)}
+          <label class:checked={s.replayOctave === value}>
+            <input type="radio" name="replay-octave" {value} checked={s.replayOctave === value}
+              onchange={() => settings.update({ replayOctave: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">Random plays the same note in another octave on each replay, so you hear it as one note across registers.</p>
+    </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Chroma mode: different notes are</legend>
+      <div class="segmented">
+        {#each CONTRASTS as [value, label] (value)}
+          <label class:checked={s.chromaContrast === value}>
+            <input type="radio" name="chroma-contrast" {value} checked={s.chromaContrast === value}
+              onchange={() => settings.update({ chromaContrast: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">Far apart is easiest. A fifth is easily mistaken for an octave, so it is the hardest.</p>
+    </div>
   </section>
 
   <section aria-labelledby="sing-h">
@@ -325,6 +364,16 @@
     display: flex;
     align-items: flex-end;
     gap: var(--space-3);
+  }
+
+  div.item.stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  div.item.stacked p {
+    margin: 0;
   }
 
   div.item > .field {

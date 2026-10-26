@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { candidateNotes, createQuestion, generateScramble, generateTarget, SCRAMBLE_HIGH, SCRAMBLE_LOW, SCRAMBLE_NOTES, type Rng } from '../src/domain/exercise';
+import {
+  candidateNotes,
+  CHROMA_DISTANCES,
+  createQuestion,
+  generateComparison,
+  generateScramble,
+  generateTarget,
+  replayInRandomOctave,
+  SCRAMBLE_HIGH,
+  SCRAMBLE_LOW,
+  SCRAMBLE_NOTES,
+  type Rng,
+} from '../src/domain/exercise';
 import { midiToOctave, midiToPitchClass, type PitchClass } from '../src/domain/music';
 import { defaultSettings, type Settings } from '../src/domain/settings';
 
@@ -130,6 +142,70 @@ describe('createQuestion', () => {
     expect(a.id).not.toBe(b.id);
   });
 
+});
+
+describe('chroma questions', () => {
+  it('pairs the target with a note in another octave, same or different about half the time', () => {
+    const s = settings({ playbackOctaveMin: 3, playbackOctaveMax: 5 });
+    const rng = seeded(21);
+    let same = 0;
+    for (let i = 0; i < 2000; i++) {
+      const q = createQuestion('identify-chroma', s, rng);
+      const second = q.comparisonMidi!;
+      expect(midiToOctave(second)).not.toBe(midiToOctave(q.targetMidi));
+      expect(midiToOctave(second)).toBeGreaterThanOrEqual(3);
+      expect(midiToOctave(second)).toBeLessThanOrEqual(5);
+      expect(Math.abs(second - q.targetMidi)).toBeGreaterThanOrEqual(12);
+      if (midiToPitchClass(second) === q.targetPitchClass) same++;
+    }
+    expect(same).toBeGreaterThan(850);
+    expect(same).toBeLessThan(1150);
+  });
+
+  it('uses the chosen contrast for different notes', () => {
+    for (const contrast of ['far', 'semitone', 'fifth', 'mixed'] as const) {
+      const s = settings({ chromaContrast: contrast });
+      const rng = seeded(22);
+      for (let i = 0; i < 300; i++) {
+        const target = 60 + (i % 12);
+        const second = generateComparison(target, s, rng);
+        const up = (((second - target) % 12) + 12) % 12;
+        const distance = Math.min(up, 12 - up);
+        if (distance !== 0) expect(CHROMA_DISTANCES[contrast]).toContain(distance);
+      }
+    }
+  });
+
+  it('reaches into a neighbouring octave when the range is a single octave', () => {
+    const s = settings({ playbackOctaveMin: 4, playbackOctaveMax: 4 });
+    const rng = seeded(23);
+    for (let i = 0; i < 100; i++) {
+      expect([3, 5]).toContain(midiToOctave(generateComparison(62, s, rng)));
+    }
+  });
+});
+
+describe('replayInRandomOctave', () => {
+  it('keeps the pitch class and moves to another octave of the range', () => {
+    const s = settings({ playbackOctaveMin: 2, playbackOctaveMax: 5 });
+    const q = createQuestion('identify', s, seeded(24));
+    const rng = seeded(25);
+    let last = q.targetMidi;
+    for (let i = 0; i < 100; i++) {
+      const next = replayInRandomOctave(q, s, rng, last);
+      expect(midiToPitchClass(next)).toBe(q.targetPitchClass);
+      expect(midiToOctave(next)).not.toBe(midiToOctave(last));
+      expect(midiToOctave(next)).toBeGreaterThanOrEqual(2);
+      expect(midiToOctave(next)).toBeLessThanOrEqual(5);
+      last = next;
+    }
+  });
+
+  it('repeats the note when the range is a single octave', () => {
+    const s = settings({ playbackOctaveMin: 4, playbackOctaveMax: 4 });
+    const q = createQuestion('identify', s, seeded(26));
+    expect(replayInRandomOctave(q, s, seeded(27), q.targetMidi)).toBe(q.targetMidi);
+  });
 });
 
 describe('generateScramble', () => {

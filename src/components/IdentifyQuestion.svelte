@@ -2,15 +2,17 @@
   import { onDestroy } from 'svelte';
   import {
     evaluateIdentify,
+    evaluateIdentifyChroma,
     evaluateIdentifyOctave,
-    type IdentifyOctaveResult,
-    type IdentifyResult,
+    replayInRandomOctave,
+    type ChromaAnswer,
+    type IdentifyAnyResult,
     type Question,
   } from '../domain/exercise';
-  import { noteName, noteToMidi, pitchClassName, midiToOctave, type PitchClass } from '../domain/music';
+  import { noteName, noteToMidi, pitchClassName, midiToOctave, midiToPitchClass, type PitchClass } from '../domain/music';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playMidi, playMidiPoly } from '../lib/playback';
+  import { playMidi, playMidiPoly, playMidiSequence } from '../lib/playback';
   import { haptic, onPress } from '../lib/native';
   import { pitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from './Piano.svelte';
@@ -23,7 +25,7 @@
     onnext,
   }: {
     question: Question;
-    onresult: (result: IdentifyResult | IdentifyOctaveResult, responseMs: number) => void;
+    onresult: (result: IdentifyAnyResult, responseMs: number) => void;
     onnext: () => void;
   } = $props();
 
@@ -32,13 +34,22 @@
   let firstPlayAt: number | null = null;
   let selected = $state<PitchClass | null>(null);
   let selectedOctave = $state<number | null>(null);
-  let result = $state<IdentifyResult | IdentifyOctaveResult | null>(null);
+  let selectedChroma = $state<ChromaAnswer | null>(null);
+  let result = $state<IdentifyAnyResult | null>(null);
+  /** The note the last (re)play sounded; random-octave replays move away from it. */
+  let lastPlayed: number | null = null;
   let notice = $state('');
 
   // Single-play applies before the answer; afterwards replay is always allowed.
   const canPlay = $derived(result !== null || s.replayPolicy === 'unlimited' || plays === 0);
   const options = $derived(s.enabledPitchClasses);
   const octaveMode = $derived(question.kind === 'identify-octave');
+  const chromaMode = $derived(question.kind === 'identify-chroma');
+  const notesMode = $derived(question.kind === 'identify');
+  const comparisonMidi = $derived(question.comparisonMidi ?? question.targetMidi);
+  const chromaTruth = $derived<ChromaAnswer>(
+    midiToPitchClass(comparisonMidi) === question.targetPitchClass ? 'same' : 'different',
+  );
   const octaves = $derived(
     Array.from({ length: s.playbackOctaveMax - s.playbackOctaveMin + 1 }, (_, i) => s.playbackOctaveMin + i),
   );
@@ -48,16 +59,31 @@
     if (firstPlayAt === null) firstPlayAt = Date.now();
     plays += 1;
     notice = '';
-    void playMidi(question.targetMidi);
+    if (chromaMode) {
+      void playMidiSequence([question.targetMidi, comparisonMidi]);
+      return;
+    }
+    const midi =
+      notesMode && s.replayOctave === 'random' && lastPlayed !== null
+        ? replayInRandomOctave(question, s, Math.random, lastPlayed)
+        : question.targetMidi;
+    lastPlayed = midi;
+    void playMidi(midi);
   }
 
   function submit() {
     if (result) return;
     if (plays === 0) {
-      notice = 'Play the note first.';
+      notice = chromaMode ? 'Play the notes first.' : 'Play the note first.';
       return;
     }
-    if (octaveMode) {
+    if (chromaMode) {
+      if (selectedChroma === null) {
+        notice = 'Choose same or different, then submit.';
+        return;
+      }
+      result = evaluateIdentifyChroma(question, selectedChroma);
+    } else if (octaveMode) {
       if (selectedOctave === null) {
         notice = 'Choose an octave, then submit.';
         return;
@@ -77,7 +103,7 @@
   function pressKey(pc: PitchClass) {
     if (result?.kind === 'identify') {
       playMidiPoly(noteToMidi(pc, midiToOctave(question.targetMidi)));
-    } else if (!result && !octaveMode && options.includes(pc)) {
+    } else if (!result && notesMode && options.includes(pc)) {
       selected = pc;
     }
   }
@@ -98,8 +124,16 @@
       play();
       return;
     }
+    if (chromaMode) {
+      const key = e.key.toLowerCase();
+      if (!result && (key === 's' || key === 'd')) {
+        e.preventDefault();
+        selectedChroma = key === 's' ? 'same' : 'different';
+      }
+      return;
+    }
     const pc = pitchClassFromKey(e);
-    if (!octaveMode && pc !== null && (result !== null || options.includes(pc))) {
+    if (notesMode && pc !== null && (result !== null || options.includes(pc))) {
       e.preventDefault();
       pressKey(pc);
       return;
@@ -122,11 +156,34 @@
   <div class="prompt">
     <button type="button" class="play" {...onPress(play)} disabled={!canPlay} title="Play note (R)">
       <span class="disc"><Icon name="play" size={28} /></span>
-      <span>{#if plays === 0}Play note{:else if canPlay}Replay note{:else}Played once{/if}</span>
+      <span>
+        {#if plays === 0}Play {chromaMode ? 'notes' : 'note'}{:else if canPlay}Replay {chromaMode ? 'notes' : 'note'}{:else}Played once{/if}
+      </span>
     </button>
   </div>
 
-  {#if octaveMode}
+  {#if chromaMode}
+    <fieldset class="chroma-answer" disabled={result !== null}>
+      <legend>Two notes in different octaves. Is it the same note?</legend>
+      <div class="choices">
+        {#each [['same', 'Same note', 'S'], ['different', 'Different', 'D']] as const as [value, label, key] (value)}
+          <button
+            type="button"
+            class:selected={selectedChroma === value}
+            class:correct={result !== null && chromaTruth === value}
+            class:wrong={result !== null && selectedChroma === value && chromaTruth !== value}
+            aria-pressed={selectedChroma === value}
+            title={`${label} (${key})`}
+            onclick={() => { selectedChroma = value; }}
+          >
+            {#if result !== null && chromaTruth === value}<span aria-hidden="true">✓ </span>{/if}
+            {#if result !== null && selectedChroma === value && chromaTruth !== value}<span aria-hidden="true">✗ </span>{/if}
+            {label}
+          </button>
+        {/each}
+      </div>
+    </fieldset>
+  {:else if octaveMode}
     <div class="octave-answer">
       <OctavePicker
         {octaves}
@@ -166,7 +223,11 @@
       <div class="notice verdict" class:good={result.correct} class:bad={!result.correct}>
         <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
         <p class="detail">
-          {#if result.kind === 'identify-octave'}
+          {#if result.kind === 'identify-chroma'}
+            <strong>{noteName(question.targetMidi, s.spelling)}</strong> then
+            <strong>{noteName(comparisonMidi, s.spelling)}</strong>:
+            {chromaTruth === 'same' ? 'the same note' : 'different notes'}.
+          {:else if result.kind === 'identify-octave'}
             It was <strong>{noteName(question.targetMidi, s.spelling)}</strong>{#if !result.correct}.
               You chose <strong>{pitchClassName(question.targetPitchClass, s.spelling)}{result.answer}</strong>{/if}.
           {:else}
@@ -184,11 +245,13 @@
       type="button"
       class="btn primary"
       onclick={result ? onnext : submit}
-      disabled={!result && (plays === 0 || (octaveMode ? selectedOctave === null : selected === null))}
+      disabled={!result &&
+        (plays === 0 ||
+          (chromaMode ? selectedChroma === null : octaveMode ? selectedOctave === null : selected === null))}
       title={result ? 'Next note (Enter)' : 'Submit (Enter)'}
     >
       {#if result}
-        Next note <Icon name="arrow-right" />
+        {chromaMode ? 'Next pair' : 'Next note'} <Icon name="arrow-right" />
       {:else}
         Submit answer
       {/if}
@@ -250,6 +313,51 @@
   .play:focus-visible .disc {
     outline: 3px solid var(--focus);
     outline-offset: 3px;
+  }
+  .chroma-answer {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .chroma-answer legend {
+    margin-bottom: var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+    width: 100%;
+  }
+  .choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+  .choices button {
+    min-height: 64px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--text-base);
+    font-weight: 600;
+  }
+  .choices button.selected {
+    border-color: var(--chroma);
+    background: var(--chroma);
+    color: var(--chroma-text);
+  }
+  .choices button.correct {
+    border-color: var(--good);
+    background: var(--good);
+    color: var(--surface);
+  }
+  .choices button.wrong {
+    border-color: var(--bad);
+    background: var(--bad);
+    color: var(--surface);
   }
   .octave-answer {
     display: flex;

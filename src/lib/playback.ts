@@ -1,4 +1,4 @@
-import { playNote, startPolyNote } from '../audio/synth';
+import { playNote, playSequence, startPolyNote } from '../audio/synth';
 import { preloadPianoRange } from '../audio/piano';
 import { midiToFrequency } from '../domain/music';
 import { settings } from './settings.svelte';
@@ -10,6 +10,11 @@ function options() {
 
 export function playMidi(midi: number): Promise<void> {
   return playNote(midiToFrequency(midi), options());
+}
+
+/** Play notes one after another, each for the configured duration. */
+export function playMidiSequence(midis: readonly number[]): Promise<void> {
+  return playSequence(midis.map(midiToFrequency), options());
 }
 
 export function playMidiPoly(midi: number): void {

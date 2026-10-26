@@ -3,6 +3,10 @@ import { ALL_PITCH_CLASSES, NATURAL_PITCH_CLASSES, toPitchClass, type PitchClass
 export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
 export type Waveform = 'piano' | 'sine' | 'triangle' | 'warm';
+/** Identify notes: whether replays repeat the note's octave or move it to another one. */
+export type ReplayOctave = 'same' | 'random';
+/** Identify chroma: how far a "different" note is from the first note. */
+export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
 
 export interface Settings {
   /** Pitch classes that exercises may use. Never empty. */
@@ -15,6 +19,8 @@ export interface Settings {
   vocalHigh: number;
   scoringPolicy: ScoringPolicy;
   replayPolicy: ReplayPolicy;
+  replayOctave: ReplayOctave;
+  chromaContrast: ChromaContrast;
   /** 0–1, perceptual. */
   volume: number;
   /** Seconds. */
@@ -66,6 +72,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   vocalHigh: 67,
   scoringPolicy: 'pitch-class',
   replayPolicy: 'unlimited',
+  replayOctave: 'same',
+  chromaContrast: 'far',
   volume: 0.7,
   noteDuration: 1.5,
   waveform: 'piano',
@@ -132,6 +140,8 @@ export function sanitizeSettings(input: unknown): Settings {
     vocalHigh: high,
     scoringPolicy: oneOf(raw.scoringPolicy, ['pitch-class', 'exact'] as const, d.scoringPolicy),
     replayPolicy: oneOf(raw.replayPolicy, ['unlimited', 'single'] as const, d.replayPolicy),
+    replayOctave: oneOf(raw.replayOctave, ['same', 'random'] as const, d.replayOctave),
+    chromaContrast: oneOf(raw.chromaContrast, ['far', 'semitone', 'fifth', 'mixed'] as const, d.chromaContrast),
     volume: clamp(num(raw.volume, d.volume), 0, 1),
     noteDuration: clamp(num(raw.noteDuration, d.noteDuration), DURATION_MIN, DURATION_MAX),
     waveform: oneOf(raw.waveform, ['piano', 'sine', 'triangle', 'warm'] as const, d.waveform),

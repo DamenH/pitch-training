@@ -9,12 +9,13 @@ import {
   midiToPitchClass,
   nearestMidiWithPitchClass,
   noteToMidi,
+  toPitchClass,
   type PitchClass,
 } from './music';
-import type { ScoringPolicy, Settings } from './settings';
+import { OCTAVE_MAX, OCTAVE_MIN, type ChromaContrast, type ScoringPolicy, type Settings } from './settings';
 import type { StablePitch } from './pitch';
 
-export type ExerciseKind = 'identify' | 'identify-octave' | 'sing-practice' | 'sing-test';
+export type ExerciseKind = 'identify' | 'identify-octave' | 'identify-chroma' | 'sing-practice' | 'sing-test';
 
 export interface Question {
   id: string;
@@ -22,6 +23,8 @@ export interface Question {
   /** Exact MIDI note. For identify: the note that is played. For singing: the displayed target. */
   targetMidi: number;
   targetPitchClass: PitchClass;
+  /** Identify chroma only: the second note, always in a different octave from the target. */
+  comparisonMidi?: number;
   /** Scoring policy for singing questions, captured when the question was created. */
   scoringPolicy: ScoringPolicy;
   createdAt: number;
@@ -38,7 +41,7 @@ function pick<T>(items: readonly T[], rng: Rng): T {
 export function candidateNotes(kind: ExerciseKind, settings: Settings): number[] {
   const enabled = new Set(settings.enabledPitchClasses);
   const notes: number[] = [];
-  if (kind === 'identify' || kind === 'identify-octave') {
+  if (kind === 'identify' || kind === 'identify-octave' || kind === 'identify-chroma') {
     for (let oct = settings.playbackOctaveMin; oct <= settings.playbackOctaveMax; oct++) {
       for (const pc of settings.enabledPitchClasses) notes.push(noteToMidi(pc, oct));
     }
@@ -100,9 +103,54 @@ export function createQuestion(
     kind,
     targetMidi,
     targetPitchClass: midiToPitchClass(targetMidi),
+    ...(kind === 'identify-chroma' ? { comparisonMidi: generateComparison(targetMidi, settings, rng) } : {}),
     scoringPolicy: settings.scoringPolicy,
     createdAt: now,
   };
+}
+
+// ---------------------------------------------------------------- chroma
+
+/** Pitch-class distances (in semitones, either direction) a "different" chroma pair may use. */
+export const CHROMA_DISTANCES: Record<ChromaContrast, readonly number[]> = {
+  far: [3, 4, 6],
+  semitone: [1],
+  fifth: [5],
+  mixed: [1, 2, 3, 4, 5, 6],
+};
+
+/** Octaves other than `octave` in the playback range, or its neighbours when the range is a single octave. */
+function otherOctaves(octave: number, settings: Settings): number[] {
+  const inRange: number[] = [];
+  for (let o = settings.playbackOctaveMin; o <= settings.playbackOctaveMax; o++) if (o !== octave) inRange.push(o);
+  return inRange.length > 0 ? inRange : [octave - 1, octave + 1].filter((o) => o >= OCTAVE_MIN && o <= OCTAVE_MAX);
+}
+
+/**
+ * The second note of a chroma question: half the time the target's pitch class,
+ * otherwise one at a distance chosen by `chromaContrast`, always in another octave.
+ * Notes at least an octave away are preferred so that a small leap never gives
+ * away "different" (a same-note pair is always a whole number of octaves apart).
+ */
+export function generateComparison(targetMidi: number, settings: Settings, rng: Rng): number {
+  const targetPc = midiToPitchClass(targetMidi);
+  const pcs: PitchClass[] =
+    rng() < 0.5
+      ? [targetPc]
+      : CHROMA_DISTANCES[settings.chromaContrast].flatMap((d) => [toPitchClass(targetPc + d), toPitchClass(targetPc - d)]);
+  const notes = otherOctaves(midiToOctave(targetMidi), settings).flatMap((o) =>
+    [...new Set(pcs)].map((pc) => noteToMidi(pc, o)),
+  );
+  const wide = notes.filter((m) => Math.abs(m - targetMidi) >= 12);
+  return pick(wide.length > 0 ? wide : notes, rng);
+}
+
+/** Note mode, random replay octave: the target's pitch class in another octave of the range than the last one played. */
+export function replayInRandomOctave(question: Question, settings: Settings, rng: Rng, lastMidi: number): number {
+  const lastOctave = midiToOctave(lastMidi);
+  const octaves: number[] = [];
+  for (let o = settings.playbackOctaveMin; o <= settings.playbackOctaveMax; o++) if (o !== lastOctave) octaves.push(o);
+  return octaves.length > 0 ? noteToMidi(question.targetPitchClass, pick(octaves, rng)) : lastMidi;
 }
 
 // ---------------------------------------------------------------- scramble
@@ -166,6 +214,28 @@ export function evaluateIdentifyOctave(question: Question, answer: number): Iden
     targetMidi: question.targetMidi,
     answer,
     correct: answer === midiToOctave(question.targetMidi),
+  };
+}
+
+export type ChromaAnswer = 'same' | 'different';
+
+export interface IdentifyChromaResult {
+  kind: 'identify-chroma';
+  targetMidi: number;
+  comparisonMidi: number;
+  answer: ChromaAnswer;
+  correct: boolean;
+}
+
+export function evaluateIdentifyChroma(question: Question, answer: ChromaAnswer): IdentifyChromaResult {
+  const comparisonMidi = question.comparisonMidi ?? question.targetMidi;
+  const same = midiToPitchClass(comparisonMidi) === question.targetPitchClass;
+  return {
+    kind: 'identify-chroma',
+    targetMidi: question.targetMidi,
+    comparisonMidi,
+    answer,
+    correct: (answer === 'same') === same,
   };
 }
 
@@ -245,7 +315,9 @@ export function evaluateSing(
   };
 }
 
-export type ExerciseResult = IdentifyResult | IdentifyOctaveResult | SingResult;
+export type IdentifyAnyResult = IdentifyResult | IdentifyOctaveResult | IdentifyChromaResult;
+
+export type ExerciseResult = IdentifyAnyResult | SingResult;
 
 /** Human-oriented description of what counts as correct for a singing question. */
 export function describePolicy(policy: ScoringPolicy): string {

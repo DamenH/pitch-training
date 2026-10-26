@@ -2,7 +2,13 @@
   import { tick } from 'svelte';
   import { href, isTab, router, type Route } from './lib/router.svelte';
   import { toast } from './lib/toast.svelte';
-  import { identifyMode, toggleIdentifyMode } from './lib/identifyMode.svelte';
+  import {
+    cycleIdentifyMode,
+    IDENTIFY_MODE_KINDS,
+    IDENTIFY_MODE_LABELS,
+    identifyMode,
+    nextIdentifyMode,
+  } from './lib/identifyMode.svelte';
   import ImportPage from './pages/ImportPage.svelte';
   import ReferencePage from './pages/ReferencePage.svelte';
   import ExercisePage from './pages/ExercisePage.svelte';
@@ -52,10 +58,10 @@
   let main: HTMLElement | undefined = $state();
   let scrolled = $state(false);
   const pushed = $derived(!isTab(router.current));
-  const identifyKind = $derived(identifyMode.value === 'notes' ? 'identify' : 'identify-octave');
+  const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyMode.value]);
 
   $effect(() => {
-    const title = router.current === 'identify' ? `Identify ${identifyMode.value === 'notes' ? 'Notes' : 'Octaves'}` : TITLES[router.current];
+    const title = router.current === 'identify' ? `Identify ${IDENTIFY_MODE_LABELS[identifyMode.value]}` : TITLES[router.current];
     document.title = `${title} · Pitch Training`;
   });
 
@@ -138,11 +144,11 @@
             type="button"
             class="identify-mode"
             class:octaves={identifyMode.value === 'octaves'}
-            aria-pressed={identifyMode.value === 'octaves'}
-            aria-label={`Identify ${identifyMode.value} mode; switch to ${identifyMode.value === 'notes' ? 'octaves' : 'notes'}`}
-            onclick={toggleIdentifyMode}
+            class:chroma={identifyMode.value === 'chroma'}
+            aria-label={`Identify ${identifyMode.value} mode; switch to ${nextIdentifyMode(identifyMode.value)}`}
+            onclick={cycleIdentifyMode}
           >
-            {identifyMode.value === 'notes' ? 'Notes' : 'Octaves'}
+            {IDENTIFY_MODE_LABELS[identifyMode.value]}
           </button>
         {/if}
       </div>
@@ -282,6 +288,12 @@
     border-color: var(--octave);
     background: var(--octave);
     color: var(--octave-text);
+  }
+
+  .identify-mode.chroma {
+    border-color: var(--chroma);
+    background: var(--chroma);
+    color: var(--chroma-text);
   }
 
   .identify-mode:active {
