@@ -77,7 +77,11 @@
   }
 
   const REPLAYS: [ReplayPolicy, string][] = [['unlimited', 'Unlimited'], ['single', 'Single play']];
-  const REPLAY_OCTAVES: [ReplayOctave, string][] = [['same', 'Same octave'], ['random', 'Random octave']];
+  const REPLAY_OCTAVES: [ReplayOctave, string][] = [
+    ['same', 'Same'],
+    ['random', 'Random'],
+    ['sweep', 'Up & down'],
+  ];
   const CONTRASTS: [ChromaContrast, string][] = [
     ['far', 'Far apart'],
     ['semitone', 'Semitone'],
@@ -214,7 +218,7 @@
     </div>
     <div class="item stacked">
 <fieldset class="field">
-      <legend>Notes mode: replay in</legend>
+      <legend>Notes mode: replay octave</legend>
       <div class="segmented">
         {#each REPLAY_OCTAVES as [value, label] (value)}
           <label class:checked={s.replayOctave === value}>
@@ -225,7 +229,7 @@
         {/each}
       </div>
     </fieldset>
-    <p class="muted small">Random plays the same note in another octave on each replay, so you hear it as one note across registers.</p>
+    <p class="muted small">Random plays the same note in another octave on each replay, so you hear it as one note across registers. Up &amp; down steps up through your octaves, then back down.</p>
     </div>
     <div class="item stacked">
 <fieldset class="field">

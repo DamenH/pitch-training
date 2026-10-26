@@ -56,6 +56,7 @@ describe('settings', () => {
       replayOctave: 'random',
       chromaContrast: 'fifth',
     });
+    expect(sanitizeSettings({ replayOctave: 'sweep' }).replayOctave).toBe('sweep');
     expect(sanitizeSettings({ replayOctave: 'loud', chromaContrast: 7 })).toMatchObject({
       replayOctave: 'same',
       chromaContrast: 'far',

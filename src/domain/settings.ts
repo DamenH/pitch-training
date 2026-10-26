@@ -3,8 +3,8 @@ import { ALL_PITCH_CLASSES, NATURAL_PITCH_CLASSES, toPitchClass, type PitchClass
 export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
 export type Waveform = 'piano' | 'sine' | 'triangle' | 'warm';
-/** Identify notes: whether replays repeat the note's octave or move it to another one. */
-export type ReplayOctave = 'same' | 'random';
+/** Identify notes: whether replays repeat the note's octave, jump to another, or sweep up and down the range. */
+export type ReplayOctave = 'same' | 'random' | 'sweep';
 /** Identify chroma: how far a "different" note is from the first note. */
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
@@ -144,7 +144,7 @@ export function sanitizeSettings(input: unknown): Settings {
     vocalHigh: high,
     scoringPolicy: oneOf(raw.scoringPolicy, ['pitch-class', 'exact'] as const, d.scoringPolicy),
     replayPolicy: oneOf(raw.replayPolicy, ['unlimited', 'single'] as const, d.replayPolicy),
-    replayOctave: oneOf(raw.replayOctave, ['same', 'random'] as const, d.replayOctave),
+    replayOctave: oneOf(raw.replayOctave, ['same', 'random', 'sweep'] as const, d.replayOctave),
     chromaContrast: oneOf(raw.chromaContrast, ['far', 'semitone', 'fifth', 'mixed'] as const, d.chromaContrast),
     volume: clamp(num(raw.volume, d.volume), 0, 1),
     noteDuration: clamp(num(raw.noteDuration, d.noteDuration), DURATION_MIN, DURATION_MAX),

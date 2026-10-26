@@ -5,6 +5,7 @@
     evaluateIdentifyChroma,
     evaluateIdentifyOctave,
     replayInRandomOctave,
+    replayInSweep,
     type ChromaAnswer,
     type IdentifyAnyResult,
     type Question,
@@ -38,6 +39,8 @@
   let result = $state<IdentifyAnyResult | null>(null);
   /** The note the last (re)play sounded; random-octave replays move away from it. */
   let lastPlayed: number | null = null;
+  /** Sweep replays: which way the next octave step goes. */
+  let sweepDirection: 1 | -1 = 1;
   let notice = $state('');
 
   // Single-play applies before the answer; afterwards replay is always allowed.
@@ -63,10 +66,12 @@
       void playMidiSequence([question.targetMidi, comparisonMidi]);
       return;
     }
-    const midi =
-      notesMode && s.replayOctave === 'random' && lastPlayed !== null
-        ? replayInRandomOctave(question, s, Math.random, lastPlayed)
-        : question.targetMidi;
+    let midi = question.targetMidi;
+    if (notesMode && lastPlayed !== null && s.replayOctave === 'random') {
+      midi = replayInRandomOctave(question, s, Math.random, lastPlayed);
+    } else if (notesMode && lastPlayed !== null && s.replayOctave === 'sweep') {
+      ({ midi, direction: sweepDirection } = replayInSweep(question, s, lastPlayed, sweepDirection));
+    }
     lastPlayed = midi;
     void playMidi(midi);
   }

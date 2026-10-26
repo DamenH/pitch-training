@@ -153,6 +153,24 @@ export function replayInRandomOctave(question: Question, settings: Settings, rng
   return octaves.length > 0 ? noteToMidi(question.targetPitchClass, pick(octaves, rng)) : lastMidi;
 }
 
+/**
+ * Note mode, sweeping replay: one octave further in `direction` through the playback range,
+ * turning back at either end, so replays run up to the top, down to the bottom, and repeat.
+ */
+export function replayInSweep(
+  question: Question,
+  settings: Settings,
+  lastMidi: number,
+  direction: 1 | -1,
+): { midi: number; direction: 1 | -1 } {
+  const { playbackOctaveMin: min, playbackOctaveMax: max } = settings;
+  const octave = midiToOctave(lastMidi);
+  if (min === max) return { midi: noteToMidi(question.targetPitchClass, min), direction };
+  const turn = octave + direction > max || octave + direction < min;
+  const next: 1 | -1 = turn ? (direction === 1 ? -1 : 1) : direction;
+  return { midi: noteToMidi(question.targetPitchClass, Math.min(max, Math.max(min, octave + next))), direction: next };
+}
+
 // ---------------------------------------------------------------- scramble
 
 /** E2 … E6: wide enough that no key or register lingers in the ear. */

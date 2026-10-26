@@ -7,6 +7,7 @@ import {
   generateScramble,
   generateTarget,
   replayInRandomOctave,
+  replayInSweep,
   SCRAMBLE_HIGH,
   SCRAMBLE_LOW,
   SCRAMBLE_NOTES,
@@ -205,6 +206,28 @@ describe('replayInRandomOctave', () => {
     const s = settings({ playbackOctaveMin: 4, playbackOctaveMax: 4 });
     const q = createQuestion('identify', s, seeded(26));
     expect(replayInRandomOctave(q, s, seeded(27), q.targetMidi)).toBe(q.targetMidi);
+  });
+});
+
+describe('replayInSweep', () => {
+  it('steps up to the top of the range, down to the bottom, and repeats', () => {
+    const s = settings({ playbackOctaveMin: 2, playbackOctaveMax: 5 });
+    const q = { ...createQuestion('identify', s, seeded(28)), targetPitchClass: 9 as PitchClass, targetMidi: 57 };
+    let last = q.targetMidi;
+    let direction: 1 | -1 = 1;
+    const octaves: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      ({ midi: last, direction } = replayInSweep(q, s, last, direction));
+      expect(midiToPitchClass(last)).toBe(9);
+      octaves.push(midiToOctave(last));
+    }
+    expect(octaves).toEqual([4, 5, 4, 3, 2, 3, 4, 5]);
+  });
+
+  it('repeats the note when the range is a single octave', () => {
+    const s = settings({ playbackOctaveMin: 4, playbackOctaveMax: 4 });
+    const q = createQuestion('identify', s, seeded(29));
+    expect(replayInSweep(q, s, q.targetMidi, 1).midi).toBe(q.targetMidi);
   });
 });
 
