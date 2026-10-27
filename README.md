@@ -177,7 +177,7 @@ For your own fork, enable **Settings → Pages → Source → GitHub Actions** a
 run the workflow on `main`. The included workflow requests the Pages permissions
 needed to publish the build.
 
-The build uses a relative base (`./`) and hash routing (`#/identify`, `#/settings`, …), so it works
+The build uses a relative base (`./`) and hash routing (`#/identify/notes`, `#/settings`, …), so it works
 at a domain root or under any repository subpath such as `https://user.github.io/pitch-training/`
 without server-side rewrites. To force an absolute base instead, build with
 `BASE_PATH=/pitch-training/ npm run build`.

@@ -1,6 +1,7 @@
 // Hash-based routing: works on GitHub Pages without server-side rewrites.
 
 import { flushSync } from 'svelte';
+import { identifyHref, identifyMode, isIdentifyMode, setIdentifyMode } from './identifyMode.svelte';
 
 export type Route = 'reference' | 'identify' | 'sing-practice' | 'sing-test' | 'import' | 'settings' | 'history';
 
@@ -19,6 +20,13 @@ function parse(hash: string): Route {
   return (ROUTES as readonly string[]).includes(name) ? (name as Route) : DEFAULT_ROUTE;
 }
 
+/** Pick up the Identify mode from `#/identify/<mode>`, rewriting a bare or unknown one to the current mode. */
+function syncIdentifyMode(hash: string) {
+  if (parse(hash) !== 'identify') return;
+  const mode = hash.replace(/^#\/?/, '').split('?')[0]?.split('/')[1] ?? '';
+  setIdentifyMode(isIdentifyMode(mode) ? mode : identifyMode.value);
+}
+
 interface ViewTransition {
   ready: Promise<void>;
   finished: Promise<void>;
@@ -34,7 +42,11 @@ class Router {
   private scroll = new Map<Route, number>();
 
   constructor() {
-    window.addEventListener('hashchange', () => this.go(parse(location.hash)));
+    syncIdentifyMode(location.hash);
+    window.addEventListener('hashchange', () => {
+      syncIdentifyMode(location.hash);
+      this.go(parse(location.hash));
+    });
   }
 
   /** Where this route was last scrolled to, so tabs reopen where they were left. */
@@ -67,5 +79,5 @@ class Router {
 export const router = new Router();
 
 export function href(route: Route): string {
-  return `#/${route}`;
+  return route === 'identify' ? identifyHref(identifyMode.value) : `#/${route}`;
 }
