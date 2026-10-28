@@ -12,7 +12,7 @@ import {
   toPitchClass,
   type PitchClass,
 } from './music';
-import { OCTAVE_MAX, OCTAVE_MIN, type ChromaContrast, type ScoringPolicy, type Settings } from './settings';
+import { OCTAVE_MAX, OCTAVE_MIN, type ChromaContrast, type ChromaMasker, type ScoringPolicy, type Settings } from './settings';
 import type { StablePitch } from './pitch';
 
 export type ExerciseKind = 'identify' | 'identify-octave' | 'identify-chroma' | 'sing-practice' | 'sing-test';
@@ -143,6 +143,51 @@ export function generateComparison(targetMidi: number, settings: Settings, rng: 
   );
   const wide = notes.filter((m) => Math.abs(m - targetMidi) >= 12);
   return pick(wide.length > 0 ? wide : notes, rng);
+}
+
+/** Masking notes played before the first note and again between the two. */
+export const CHROMA_MASKER_NOTES: Record<ChromaMasker, number> = { off: 0, short: 5, long: 10 };
+/** Masking notes run at the scramble's pace, then pause so the test note stands apart. */
+export const MASK_STEP = 0.2;
+export const MASK_NOTE = 0.16;
+export const MASK_PAUSE = 0.4;
+/** Gap between the two notes when there is no masker. */
+const PAIR_GAP = 0.08;
+
+export type ChromaCue = 'mask' | 'first' | 'second';
+
+export interface ChromaStep {
+  midi: number;
+  /** Seconds from the start of playback. */
+  at: number;
+  duration: number;
+  cue: ChromaCue;
+}
+
+/**
+ * Everything one play of a chroma pair sounds: optionally a masker, the first note,
+ * another masker, then the second note. `noteSeconds` is how long a test note
+ * sounds including its release, which depends on the instrument.
+ */
+export function chromaTimeline(question: Question, settings: Settings, rng: Rng, noteSeconds: number): ChromaStep[] {
+  const count = CHROMA_MASKER_NOTES[settings.chromaMasker];
+  const second = question.comparisonMidi ?? question.targetMidi;
+  const steps: ChromaStep[] = [];
+  let at = 0;
+  const mask = (avoid: PitchClass) => {
+    if (count === 0) return;
+    for (const midi of generateScramble(rng, avoid, count)) {
+      steps.push({ midi, at, duration: MASK_NOTE, cue: 'mask' });
+      at += MASK_STEP;
+    }
+    at += MASK_PAUSE - MASK_STEP + MASK_NOTE;
+  };
+  mask(question.targetPitchClass);
+  steps.push({ midi: question.targetMidi, at, duration: settings.noteDuration, cue: 'first' });
+  at += noteSeconds + (count === 0 ? PAIR_GAP : MASK_PAUSE);
+  mask(midiToPitchClass(second));
+  steps.push({ midi: second, at, duration: settings.noteDuration, cue: 'second' });
+  return steps;
 }
 
 /** Note mode, random replay octave: the target's pitch class in another octave of the range than the last one played. */

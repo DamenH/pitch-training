@@ -12,20 +12,21 @@ needed for exercises. Microphone audio is analysed in memory on your device and 
 | Destination | What it does |
 | --- | --- |
 | **Reference** | Polyphonic piano (octaves 1–7): tap keys to hear full reference tones, including chords. Shows note name, octave and frequency. Start the microphone to match your voice to the last selected key, using the same pitch feedback and scoring settings as Sing. Built-in examples and saved pieces sit below the piano on phones and alongside it on wide windows; play, save, share and download them. Computer keys `A W S E D F T G Y H U J` play C–B, `Z`/`X` change octave. |
-| **Identify** | Tap *Play note* to hear a random note, choose its pitch class on a labeled piano (silent until you submit), submit. After submitting, play any piano key to compare notes in the target's octave. No timer. Shows the correct note, your answer and the octave played. Optional single-play mode, and an optional *random octave* replay that plays the same note in another octave each time. The mode pill next to the title switches between **Notes**, **Octaves** (the note name is given; choose its octave) and **Chroma** (two notes in different octaves: same note or different? “Different” pairs are far apart, a semitone, a fifth, or mixed, set in Settings). Keys: `R`/`Space` play, `C`–`B` choose or play comparison notes after submitting (`Shift` = sharp), digits choose an octave, `S`/`D` answer same/different, `Enter` submit / next. |
+| **Identify** | Tap *Play note* to hear a random note, choose its pitch class on a labeled piano (silent until you submit), submit. After submitting, play any piano key to compare notes in the target's octave. No timer. Shows the correct note, your answer and the octave played. Optional single-play mode, and an optional *random octave* replay that plays the same note in another octave each time. The mode pill next to the title switches between **Notes**, **Octaves** (the note name is given; choose its octave) and **Chroma** (two notes in different octaves: same note or different? “Different” pairs are far apart, a semitone, a fifth, or mixed, set in Settings). Each mode has its own link (`#/identify/notes`, `#/identify/octaves`, `#/identify/chroma`). In Chroma, tapping *Same note* or *Different* answers at once: a toast says whether you were right (without naming the notes, which would be a reference) and the next pair plays. An optional *masker* (Settings) plays random notes before the pair and between the two, so the first can't be held in memory; numbered markers and a page tint show when each test note sounds. Keys: `R`/`Space` play, `C`–`B` choose or play comparison notes after submitting (`Shift` = sharp), digits choose an octave, `S`/`D` answer same/different, `Enter` submit / next. |
+| **Anchor** | Exercises for one remembered reference note (any of the 12, chosen under *Options*). **Tune** (`#/anchor/tune`): a sustained tone starts at a random pitch, at least 200¢ from the anchor; drag the wheel (or scroll, or use the arrow keys, `Shift` for 50¢ steps) until it is the anchor in any octave, then *Lock in*. The wheel only moves the pitch relative to where it is, and its 18-semitone range sits at a random height each round, so neither position nor range gives the anchor away. The reveal shows the error in cents (perfect within 10¢, close within 25¢, found within your tolerance) and plays your tone, then the real anchor. A scramble before each round (on by default) washes out the previous reveal. Rounds with nothing answered in the hour before are marked *cold*; History reports their average miss and bias separately. *Options* also sets the tuning sound and tolerance. Keys: arrows tune, `Enter` start / lock in / next. |
 | **Sing** | Shows a target note; live tuner-style feedback (detected note, cents, above/below/on target). Never auto-advances. A *Detector details* panel shows raw frequency, clarity, level and the reference note, so octave errors are visible. |
 | **Sing test** | Hold a steady note for about 800 ms to fill the progress bar and lock an answer. Re-record to replace it, or Check answer to score the frozen capture. Pitch and correctness remain hidden until checking. Keys: `Enter` check, `N` next. |
 | **Scramble** (Identify, Sing, Sing test) | A per-exercise checkbox. When on, *Next note* first plays about three seconds of random, widely leaping notes (E2–E6, never ending on the new target) with no keys shown, so the next note can't be judged relative to the last. In Sing test the microphone ignores the scramble. |
 | **Import** (+ in Pieces) | Choose or drop a MIDI/JSON file, or paste a JSON score. Preview, edit the title, save to Reference, share, and download. |
-| **Settings** (gear) | Enabled notes (all / naturals / custom, never empty), playback octave range, vocal range with presets, scoring policy, tolerance, replay policy, volume, duration, sound (sampled grand piano, sine, triangle, warm), sharps/flats, history on/off, reset, offline status and updates. |
+| **Settings** (gear) | Enabled notes (all / naturals / custom, never empty), playback octave range, vocal range with presets, scoring policy, tolerance, replay policy, volume, duration, sound (sampled grand piano, soft synth, sine, triangle, warm), Chroma masker, sharps/flats, history on/off, reset, offline status and updates. |
 | **History** (chart) | Accuracy, totals, per-exercise and per-note accuracy, average response time, recent answers, *Clear history*. |
 
 Keyboard shortcuts are not spelled out in the interface; on desktop, hovering a button shows its key.
 
 ### Layout and platform integration
 
-- **Phones:** a sticky title bar (History and Settings at the right), a bottom tab bar for the four
-  exercises, and pushed screens (Settings, History, Import) with a Back button. Primary actions stay
+- **Phones:** a sticky title bar (History and Settings at the right), a bottom tab bar for the five
+  exercise tabs, and pushed screens (Settings, History, Import) with a Back button. Primary actions stay
   in the thumb zone above the tab bar. Phones on their side get an icon rail instead.
 - **Desktop:** a persistent sidebar, and pages that lay out by their own width (container queries).
   The installed desktop app draws into the title bar area (Window Controls Overlay).
@@ -192,18 +193,20 @@ src/
     pitchCapture.ts  Target-independent held-note progress and immutable answer capture
     exercise.ts      Question generation, pitch comparison, answer evaluation
     settings.ts      Settings model, defaults, validation
+    anchor.ts        Anchor tune rounds, error in cents, grading, cold rounds
     history.ts       History entries and summaries
     score.ts         MIDI/JSON import/export and score validation
     compactScore.ts  Compact binary sharing codec
     examples.ts      Generated practice patterns and public-domain melodies
   audio/           Browser APIs
     context.ts       Single shared AudioContext, resumed from user gestures
-    synth.ts         Polyphonic sampled piano/oscillators, envelopes and score scheduling
+    synth.ts         Polyphonic sampled piano/oscillators, timelines, sustained tones and score scheduling
+    presets.ts       Synth voices as data (oscillator mix, filter, envelope)
     microphone.ts    getUserMedia + AnalyserNode + Pitchy (McLeod Pitch Method)
   lib/             Svelte 5 reactive stores (settings, history, mic, router, toast) and helpers
     native.ts        Platform integrations: touch-down press, haptics, audio session, wake lock
-  components/      Piano, PitchMeter, MicPanel, PiecePlayer, ScoreLibrary, Sheet, IdentifyQuestion, SingQuestion
-  pages/           ExercisePage (three exercise modes), Reference, Import, Settings, History
+  components/      Piano, PitchMeter, MicPanel, PiecePlayer, ScoreLibrary, Sheet, IdentifyQuestion, SingQuestion, TuneQuestion
+  pages/           ExercisePage (three exercise modes), AnchorPage, Reference, Import, Settings, History
 tests/             Vitest specs, including synthetic pitch-observation sequences
 ```
 

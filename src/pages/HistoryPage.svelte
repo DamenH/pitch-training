@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ALL_PITCH_CLASSES, noteName, pitchClassName } from '../domain/music';
-  import { summarize, type HistoryEntry, type Tally } from '../domain/history';
+  import { summarize, tuneStats, type HistoryEntry, type Tally, type TuneStats } from '../domain/history';
   import { history } from '../lib/history.svelte';
   import { settings } from '../lib/settings.svelte';
   import { href } from '../lib/router.svelte';
@@ -11,6 +11,17 @@
   const s = $derived(settings.value);
   const summary = $derived(summarize(history.entries));
   const recent = $derived(history.entries.slice(-25).reverse());
+  const tune = $derived(tuneStats(history.entries));
+
+  function miss(t: TuneStats): string {
+    return t.meanMiss === null ? '—' : `${Math.round(t.meanMiss)}¢`;
+  }
+
+  function bias(t: TuneStats): string {
+    if (t.bias === null) return '—';
+    const r = Math.round(t.bias);
+    return r === 0 ? 'neither way' : `${signedCents(r)} ${r > 0 ? 'sharp' : 'flat'}`;
+  }
 
   function pct(t: Tally): string {
     return t.accuracy === null ? '—' : `${Math.round(t.accuracy * 100)}%`;
@@ -26,6 +37,7 @@
     if (e.exercise === 'identify') return pitchClassName(e.answer as 0, s.spelling);
     if (e.exercise === 'identify-octave') return `${pitchClassName(e.targetPitchClass, s.spelling)}${e.answer}`;
     if (e.exercise === 'identify-chroma') return e.answer === 1 ? 'same' : 'different';
+    if (e.exercise === 'anchor-tune') return e.cents === null ? '—' : signedCents(e.cents);
     return `${noteName(e.answer, s.spelling)}${e.cents !== null ? ` (${signedCents(e.cents)})` : ''}`;
   }
 
@@ -52,6 +64,7 @@
     ['identify', 'Identify notes'],
     ['identify-octave', 'Identify octaves'],
     ['identify-chroma', 'Identify chroma'],
+    ['anchor-tune', 'Anchor tune'],
     ['sing-test', 'Sing test'],
   ] as const;
 
@@ -59,6 +72,7 @@
     identify: 'Identify notes',
     'identify-octave': 'Identify octaves',
     'identify-chroma': 'Identify chroma',
+    'anchor-tune': 'Anchor tune',
     'sing-test': 'Sing',
   };
 </script>
@@ -94,6 +108,22 @@
         {/each}
       </ul>
     </section>
+
+    {#if tune.all.rounds > 0}
+      <section aria-labelledby="tune-h">
+        <h2 id="tune-h" class="eyebrow">Anchor tune</h2>
+        <ul class="exercises">
+          {#each [['All rounds', tune.all], ['Cold rounds', tune.cold]] as const as [label, t] (label)}
+            <li>
+              <span class="name">{label}</span>
+              <span class="stat">{miss(t)}</span>
+              <span class="muted small">{t.rounds} {t.rounds === 1 ? 'round' : 'rounds'} · average miss · leans {bias(t)}</span>
+            </li>
+          {/each}
+        </ul>
+        <p class="muted small">Cold rounds come after an hour with nothing answered, so they show what you remember unaided.</p>
+      </section>
+    {/if}
 
     <section aria-labelledby="pc-h">
       <h2 id="pc-h" class="eyebrow">By note</h2>

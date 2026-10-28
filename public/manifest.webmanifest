@@ -17,6 +17,7 @@
   ],
   "shortcuts": [
     { "name": "Identify", "short_name": "Identify", "url": "./#/identify/notes" },
+    { "name": "Anchor", "short_name": "Anchor", "url": "./#/anchor/tune" },
     { "name": "Sing", "short_name": "Sing", "url": "./#/sing-practice" },
     { "name": "Sing test", "short_name": "Test", "url": "./#/sing-test" },
     { "name": "Reference", "short_name": "Reference", "url": "./#/reference" }

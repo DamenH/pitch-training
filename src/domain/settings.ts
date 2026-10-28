@@ -2,11 +2,17 @@ import { ALL_PITCH_CLASSES, NATURAL_PITCH_CLASSES, toPitchClass, type PitchClass
 
 export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
-export type Waveform = 'piano' | 'sine' | 'triangle' | 'warm';
+export type Waveform = 'piano' | 'soft' | 'sine' | 'triangle' | 'warm';
+export const WAVEFORMS: readonly Waveform[] = ['piano', 'soft', 'sine', 'triangle', 'warm'];
+/** Sounds that can sustain, for tuning by ear (the piano decays). */
+export type ToneWaveform = Exclude<Waveform, 'piano'>;
+export const TONE_WAVEFORMS: readonly ToneWaveform[] = ['soft', 'sine', 'triangle', 'warm'];
 /** Identify notes: whether replays repeat the note's octave, jump to another, or sweep up and down the range. */
 export type ReplayOctave = 'same' | 'random' | 'sweep';
 /** Identify chroma: how far a "different" note is from the first note. */
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
+/** Identify chroma: random notes before and between the pair, so the first can't be held in memory. */
+export type ChromaMasker = 'off' | 'short' | 'long';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
 export type ReferenceOctaves = 1 | 2 | 3;
 
@@ -23,6 +29,7 @@ export interface Settings {
   replayPolicy: ReplayPolicy;
   replayOctave: ReplayOctave;
   chromaContrast: ChromaContrast;
+  chromaMasker: ChromaMasker;
   /** 0–1, perceptual. */
   volume: number;
   /** Seconds. */
@@ -35,6 +42,14 @@ export interface Settings {
   /** Play a burst of random notes before each new exercise question, to break relative pitch. */
   scramble: boolean;
   referenceOctaves: ReferenceOctaves;
+  /** Anchor: the note every Anchor mode trains. */
+  anchorPitchClass: PitchClass;
+  /** Anchor tune: the sustained sound you tune. */
+  tuneWaveform: ToneWaveform;
+  /** Anchor tune: scramble before each round, so the last reveal can't be used as a reference. */
+  tuneMasker: boolean;
+  /** Anchor tune: ± cents that count as finding the note. */
+  tuneToleranceCents: number;
 }
 
 export const OCTAVE_MIN = 1;
@@ -47,6 +62,8 @@ export const TOLERANCE_MIN = 5;
 export const TOLERANCE_MAX = 100;
 export const DURATION_MIN = 0.3;
 export const DURATION_MAX = 4;
+export const TUNE_TOLERANCE_MIN = 10;
+export const TUNE_TOLERANCE_MAX = 100;
 
 export interface VocalPreset {
   id: string;
@@ -77,6 +94,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   replayPolicy: 'unlimited',
   replayOctave: 'same',
   chromaContrast: 'far',
+  chromaMasker: 'off',
   volume: 0.7,
   noteDuration: 1.5,
   waveform: 'piano',
@@ -85,6 +103,10 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   historyEnabled: true,
   scramble: false,
   referenceOctaves: 1,
+  anchorPitchClass: 0,
+  tuneWaveform: 'soft',
+  tuneMasker: true,
+  tuneToleranceCents: 50,
 });
 
 export function defaultSettings(): Settings {
@@ -146,14 +168,24 @@ export function sanitizeSettings(input: unknown): Settings {
     replayPolicy: oneOf(raw.replayPolicy, ['unlimited', 'single'] as const, d.replayPolicy),
     replayOctave: oneOf(raw.replayOctave, ['same', 'random', 'sweep'] as const, d.replayOctave),
     chromaContrast: oneOf(raw.chromaContrast, ['far', 'semitone', 'fifth', 'mixed'] as const, d.chromaContrast),
+    chromaMasker: oneOf(raw.chromaMasker, ['off', 'short', 'long'] as const, d.chromaMasker),
     volume: clamp(num(raw.volume, d.volume), 0, 1),
     noteDuration: clamp(num(raw.noteDuration, d.noteDuration), DURATION_MIN, DURATION_MAX),
-    waveform: oneOf(raw.waveform, ['piano', 'sine', 'triangle', 'warm'] as const, d.waveform),
+    waveform: oneOf(raw.waveform, WAVEFORMS, d.waveform),
     toleranceCents: Math.round(clamp(num(raw.toleranceCents, d.toleranceCents), TOLERANCE_MIN, TOLERANCE_MAX)),
     spelling: oneOf(raw.spelling, ['sharps', 'flats'] as const, d.spelling),
     historyEnabled: typeof raw.historyEnabled === 'boolean' ? raw.historyEnabled : d.historyEnabled,
     scramble,
     referenceOctaves: ([1, 2, 3] as const).find((n) => n === raw.referenceOctaves) ?? d.referenceOctaves,
+    anchorPitchClass:
+      typeof raw.anchorPitchClass === 'number' && Number.isInteger(raw.anchorPitchClass)
+        ? toPitchClass(raw.anchorPitchClass)
+        : d.anchorPitchClass,
+    tuneWaveform: oneOf(raw.tuneWaveform, TONE_WAVEFORMS, d.tuneWaveform),
+    tuneMasker: typeof raw.tuneMasker === 'boolean' ? raw.tuneMasker : d.tuneMasker,
+    tuneToleranceCents: Math.round(
+      clamp(num(raw.tuneToleranceCents, d.tuneToleranceCents), TUNE_TOLERANCE_MIN, TUNE_TOLERANCE_MAX),
+    ),
   };
 }
 

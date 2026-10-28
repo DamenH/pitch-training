@@ -15,6 +15,9 @@
   --octave-soft: #ece4f5;
   --chroma: #9a4a1f;
   --chroma-text: #ffffff;
+  --anchor: #2b5a8c;
+  --anchor-text: #ffffff;
+  --anchor-soft: #dde7f2;
   --good: #1f6b3a;
   --good-soft: #dcefe2;
   --bad: #a3322b;
@@ -97,6 +100,9 @@
     --octave-soft: #332743;
     --chroma: #f0a77a;
     --chroma-text: #2a1308;
+    --anchor: #93bbe6;
+    --anchor-text: #0d1a28;
+    --anchor-soft: #1f2c3b;
     --good: #7fd29a;
     --good-soft: #1d3324;
     --bad: #f0928a;
@@ -129,6 +135,15 @@ body {
 
 body {
   overflow-x: hidden;
+}
+
+/* Identify chroma: the page tints while a test note sounds, and stays plain through the masker. */
+html[data-cue] body {
+  transition: background-color 160ms;
+}
+
+html[data-cue='test'] body {
+  background: color-mix(in srgb, var(--chroma) 12%, var(--bg));
 }
 
 /* Installed app: no rubber-banding past the edges and no pull-to-refresh. */

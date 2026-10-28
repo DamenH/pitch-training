@@ -1,15 +1,33 @@
 // Hash-based routing: works on GitHub Pages without server-side rewrites.
 
 import { flushSync } from 'svelte';
-import { identifyHref, identifyMode, isIdentifyMode, setIdentifyMode } from './identifyMode.svelte';
+import { anchorModes } from './anchorMode.svelte';
+import { identifyModes } from './identifyMode.svelte';
+import type { PageModes } from './pageModes.svelte';
 
-export type Route = 'reference' | 'identify' | 'sing-practice' | 'sing-test' | 'import' | 'settings' | 'history';
+export type Route = 'reference' | 'identify' | 'anchor' | 'sing-practice' | 'sing-test' | 'import' | 'settings' | 'history';
 
-export const ROUTES: readonly Route[] = ['reference', 'identify', 'sing-practice', 'sing-test', 'import', 'settings', 'history'];
+export const ROUTES: readonly Route[] = [
+  'reference',
+  'identify',
+  'anchor',
+  'sing-practice',
+  'sing-test',
+  'import',
+  'settings',
+  'history',
+];
 export const DEFAULT_ROUTE: Route = 'identify';
 
 /** Top-level destinations; the others are screens pushed on top of them. */
-export const TABS: readonly Route[] = ['reference', 'identify', 'sing-practice', 'sing-test'];
+export const TABS: readonly Route[] = ['reference', 'identify', 'anchor', 'sing-practice', 'sing-test'];
+
+/** Tabs whose modes are part of the route, e.g. `#/identify/chroma`. */
+const MODES: Partial<Record<Route, PageModes<string>>> = { identify: identifyModes, anchor: anchorModes };
+
+export function modesFor(route: Route): PageModes<string> | undefined {
+  return MODES[route];
+}
 
 export function isTab(route: Route): boolean {
   return TABS.includes(route);
@@ -20,11 +38,8 @@ function parse(hash: string): Route {
   return (ROUTES as readonly string[]).includes(name) ? (name as Route) : DEFAULT_ROUTE;
 }
 
-/** Pick up the Identify mode from `#/identify/<mode>`, rewriting a bare or unknown one to the current mode. */
-function syncIdentifyMode(hash: string) {
-  if (parse(hash) !== 'identify') return;
-  const mode = hash.replace(/^#\/?/, '').split('?')[0]?.split('/')[1] ?? '';
-  setIdentifyMode(isIdentifyMode(mode) ? mode : identifyMode.value);
+function syncMode(hash: string) {
+  MODES[parse(hash)]?.sync(hash);
 }
 
 interface ViewTransition {
@@ -42,9 +57,9 @@ class Router {
   private scroll = new Map<Route, number>();
 
   constructor() {
-    syncIdentifyMode(location.hash);
+    syncMode(location.hash);
     window.addEventListener('hashchange', () => {
-      syncIdentifyMode(location.hash);
+      syncMode(location.hash);
       this.go(parse(location.hash));
     });
   }
@@ -79,5 +94,5 @@ class Router {
 export const router = new Router();
 
 export function href(route: Route): string {
-  return route === 'identify' ? identifyHref(identifyMode.value) : `#/${route}`;
+  return MODES[route]?.href() ?? `#/${route}`;
 }

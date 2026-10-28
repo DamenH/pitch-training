@@ -23,6 +23,7 @@
     VOCAL_PRESETS,
     type ScoringPolicy,
     type ChromaContrast,
+    type ChromaMasker,
     type ReplayOctave,
     type ReferenceOctaves,
     type ReplayPolicy,
@@ -88,6 +89,7 @@
     ['fifth', 'Fifth'],
     ['mixed', 'Mixed'],
   ];
+  const MASKERS: [ChromaMasker, string][] = [['off', 'Off'], ['short', 'Short'], ['long', 'Long']];
   const KEYBOARD_SIZES: [ReferenceOctaves, string][] = [[1, '1 octave'], [2, '2 octaves'], [3, '3 octaves']];
   const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
 </script>
@@ -132,6 +134,7 @@
         <span>Instrument</span>
         <select value={s.waveform} onchange={(e) => settings.update({ waveform: e.currentTarget.value as Waveform })}>
           <option value="piano">Grand piano</option>
+          <option value="soft">Soft synth</option>
           <option value="sine">Sine</option>
           <option value="triangle">Triangle</option>
           <option value="warm">Warm</option>
@@ -245,6 +248,21 @@
       </div>
     </fieldset>
     <p class="muted small">Far apart is easiest. A fifth is easily mistaken for an octave, so it is the hardest.</p>
+    </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Chroma mode: masking notes</legend>
+      <div class="segmented">
+        {#each MASKERS as [value, label] (value)}
+          <label class:checked={s.chromaMasker === value}>
+            <input type="radio" name="chroma-masker" {value} checked={s.chromaMasker === value}
+              onchange={() => settings.update({ chromaMasker: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">Random notes play before the pair and between the two, so you can't hold the first note in memory. The page tints while each test note sounds.</p>
     </div>
   </section>
 

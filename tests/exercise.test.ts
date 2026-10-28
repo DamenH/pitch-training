@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   candidateNotes,
   CHROMA_DISTANCES,
+  CHROMA_MASKER_NOTES,
+  chromaTimeline,
   createQuestion,
   generateComparison,
   generateScramble,
@@ -247,6 +249,42 @@ describe('generateScramble', () => {
         }
       }
       expect(midiToPitchClass(notes.at(-1)!)).not.toBe(avoid);
+    }
+  });
+});
+
+describe('chroma timeline', () => {
+  const s = (patch: Partial<Settings>) => ({ ...defaultSettings(), ...patch });
+
+  it('plays just the pair without a masker', () => {
+    const rng = seeded(21);
+    const q = createQuestion('identify-chroma', s({}), rng);
+    const steps = chromaTimeline(q, s({}), rng, 1.8);
+    expect(steps.map((x) => x.cue)).toEqual(['first', 'second']);
+    expect(steps[0]!.midi).toBe(q.targetMidi);
+    expect(steps[1]!.midi).toBe(q.comparisonMidi);
+    expect(steps[1]!.at).toBeGreaterThanOrEqual(1.8);
+  });
+
+  it('masks before and between, in order, without overlapping the test notes', () => {
+    const rng = seeded(22);
+    const settings = s({ chromaMasker: 'short' });
+    for (let i = 0; i < 50; i++) {
+      const q = createQuestion('identify-chroma', settings, rng);
+      const steps = chromaTimeline(q, settings, rng, 1.8);
+      const n = CHROMA_MASKER_NOTES.short;
+      expect(steps.map((x) => x.cue)).toEqual([
+        ...Array(n).fill('mask'),
+        'first',
+        ...Array(n).fill('mask'),
+        'second',
+      ]);
+      for (let j = 1; j < steps.length; j++) expect(steps[j]!.at).toBeGreaterThan(steps[j - 1]!.at);
+      // Nothing starts while the first note is still sounding.
+      expect(steps[n + 1]!.at).toBeGreaterThanOrEqual(steps[n]!.at + 1.8);
+      // Neither masker ends on the note that follows it.
+      expect(midiToPitchClass(steps[n - 1]!.midi)).not.toBe(q.targetPitchClass);
+      expect(midiToPitchClass(steps[2 * n]!.midi)).not.toBe(midiToPitchClass(q.comparisonMidi!));
     }
   });
 });

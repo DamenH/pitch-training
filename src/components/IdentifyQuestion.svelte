@@ -7,13 +7,15 @@
     replayInRandomOctave,
     replayInSweep,
     type ChromaAnswer,
+    type ChromaCue,
     type IdentifyAnyResult,
     type Question,
   } from '../domain/exercise';
   import { noteName, noteToMidi, pitchClassName, midiToOctave, midiToPitchClass, type PitchClass } from '../domain/music';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playMidi, playMidiPoly, playMidiSequence } from '../lib/playback';
+  import { playChromaPair, playMidi, playMidiPoly } from '../lib/playback';
+  import { showToast } from '../lib/toast.svelte';
   import { haptic, onPress } from '../lib/native';
   import { pitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from './Piano.svelte';
@@ -42,6 +44,10 @@
   /** Sweep replays: which way the next octave step goes. */
   let sweepDirection: 1 | -1 = 1;
   let notice = $state('');
+  /** Chroma: which part of the pair is sounding, so the two test notes can't be mistaken for the masker. */
+  let cue = $state<ChromaCue | null>(null);
+  /** Whether the current play has reached the first note, so a masker can be shown before or between. */
+  let heardFirst = $state(false);
 
   // Single-play applies before the answer; afterwards replay is always allowed.
   const canPlay = $derived(result !== null || s.replayPolicy === 'unlimited' || plays === 0);
@@ -63,7 +69,11 @@
     plays += 1;
     notice = '';
     if (chromaMode) {
-      void playMidiSequence([question.targetMidi, comparisonMidi]);
+      heardFirst = false;
+      void playChromaPair(question, (c) => {
+        cue = c;
+        if (c === 'first') heardFirst = true;
+      });
       return;
     }
     let midi = question.targetMidi;
@@ -108,7 +118,30 @@
     }
     haptic(result.correct ? 'success' : 'error');
     onresult(result, Date.now() - (firstPlayAt ?? question.createdAt));
+    if (result.kind === 'identify-chroma') {
+      // Straight on to the next pair. The toast deliberately leaves out note names:
+      // a named note is a reference that would make the next judgement relative.
+      const truth = chromaTruth === 'same' ? 'the same note' : 'different notes';
+      showToast(result.correct ? `✓ Correct: ${truth}` : `✗ Not quite: ${truth}`);
+      onnext();
+    }
   }
+
+  /** Chroma: answering submits at once. */
+  function answerChroma(value: ChromaAnswer) {
+    if (result) return;
+    selectedChroma = value;
+    submit();
+  }
+
+  // Tint the whole page while a test note sounds.
+  $effect(() => {
+    if (!chromaMode) return;
+    document.documentElement.dataset.cue = cue === 'first' || cue === 'second' ? 'test' : (cue ?? 'idle');
+  });
+  onDestroy(() => {
+    delete document.documentElement.dataset.cue;
+  });
 
   function pressKey(pc: PitchClass) {
     if (result?.kind === 'identify') {
@@ -138,7 +171,7 @@
       const key = e.key.toLowerCase();
       if (!result && (key === 's' || key === 'd')) {
         e.preventDefault();
-        selectedChroma = key === 's' ? 'same' : 'different';
+        answerChroma(key === 's' ? 'same' : 'different');
       }
       return;
     }
@@ -170,10 +203,18 @@
         {#if plays === 0}Play {chromaMode ? 'notes' : 'note'}{:else if canPlay}Replay {chromaMode ? 'notes' : 'note'}{:else}Played once{/if}
       </span>
     </button>
+    {#if chromaMode}
+      <div class="cues" aria-hidden="true">
+        {#if s.chromaMasker !== 'off'}<span class="cue-gap" class:on={cue === 'mask' && !heardFirst}></span>{/if}
+        <span class="cue" class:on={cue === 'first'}>1</span>
+        <span class="cue-gap" class:on={cue === 'mask' && heardFirst}></span>
+        <span class="cue" class:on={cue === 'second'}>2</span>
+      </div>
+    {/if}
   </div>
 
   {#if chromaMode}
-    <fieldset class="chroma-answer" disabled={result !== null}>
+    <fieldset class="chroma-answer" disabled={result !== null || plays === 0}>
       <legend>Two notes in different octaves. Is it the same note?</legend>
       <div class="choices">
         {#each [['same', 'Same note', 'S'], ['different', 'Different', 'D']] as const as [value, label, key] (value)}
@@ -184,7 +225,7 @@
             class:wrong={result !== null && selectedChroma === value && chromaTruth !== value}
             aria-pressed={selectedChroma === value}
             title={`${label} (${key})`}
-            onclick={() => { selectedChroma = value; }}
+            onclick={() => answerChroma(value)}
           >
             {#if result !== null && chromaTruth === value}<span aria-hidden="true">✓ </span>{/if}
             {#if result !== null && selectedChroma === value && chromaTruth !== value}<span aria-hidden="true">✗ </span>{/if}
@@ -249,6 +290,7 @@
     {/if}
   </div>
 
+  {#if !chromaMode}
   <div class="action-bar">
     <button
       type="button"
@@ -266,13 +308,58 @@
       {/if}
     </button>
   </div>
+  {/if}
 </section>
 
 <style>
   .prompt {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
     padding-block: var(--space-2);
+  }
+  .cues {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .cue {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    transition:
+      background-color 120ms,
+      border-color 120ms,
+      color 120ms,
+      transform 120ms var(--ease);
+  }
+  .cue.on {
+    border-color: var(--chroma);
+    background: var(--chroma);
+    color: var(--chroma-text);
+    transform: scale(1.12);
+  }
+  /* The masker: a dotted run between the two notes that flickers while it plays. */
+  .cue-gap {
+    width: 40px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--border) 0 4px, transparent 4px 8px);
+  }
+  .cue-gap.on {
+    animation: flicker 400ms steps(2) infinite;
+  }
+  @keyframes flicker {
+    50% {
+      opacity: 0.3;
+    }
   }
   .play {
     display: flex;

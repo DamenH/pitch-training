@@ -1,6 +1,8 @@
-import { playNote, playSequence, startPolyNote } from '../audio/synth';
+import { noteSpan, playNote, playTimeline, startPolyNote, startTone, type Tone } from '../audio/synth';
 import { preloadPianoRange } from '../audio/piano';
+import { chromaTimeline, type ChromaCue, type Question } from '../domain/exercise';
 import { midiToFrequency } from '../domain/music';
+import type { ToneWaveform } from '../domain/settings';
 import { settings } from './settings.svelte';
 
 function options() {
@@ -12,9 +14,29 @@ export function playMidi(midi: number): Promise<void> {
   return playNote(midiToFrequency(midi), options());
 }
 
-/** Play notes one after another, each for the configured duration. */
-export function playMidiSequence(midis: readonly number[]): Promise<void> {
-  return playSequence(midis.map(midiToFrequency), options());
+/** Masking notes sit back a little, so the test notes stand out by ear as well as on screen. */
+const MASK_VOLUME = 0.6;
+let chromaRun = 0;
+
+/**
+ * Play a chroma pair, with any masker the settings ask for. `oncue` reports which part
+ * is sounding as it starts, and null once playback ends or is interrupted.
+ */
+export function playChromaPair(question: Question, oncue: (cue: ChromaCue | null) => void): Promise<void> {
+  const mine = ++chromaRun;
+  const s = settings.value;
+  const steps = chromaTimeline(question, s, Math.random, noteSpan(s.noteDuration, s.waveform));
+  const notes = steps.map((step) => ({
+    frequency: midiToFrequency(step.midi),
+    at: step.at,
+    duration: step.duration,
+    volume: step.cue === 'mask' ? s.volume * MASK_VOLUME : s.volume,
+  }));
+  return playTimeline(notes, s.waveform, (i) => {
+    if (mine === chromaRun) oncue(steps[i]!.cue);
+  }).finally(() => {
+    if (mine === chromaRun) oncue(null);
+  });
 }
 
 export function playMidiPoly(midi: number): void {
@@ -30,4 +52,38 @@ export function preloadNotes(low: number, high: number): void {
 export function preloadPlaybackRange(): void {
   const s = settings.value;
   preloadNotes((s.playbackOctaveMin + 1) * 12, (s.playbackOctaveMax + 1) * 12 + 11);
+}
+
+/** Anchor tune: the sustained tone being tuned, at a fractional MIDI pitch. */
+export function startTuneTone(midi: number): Tone {
+  const s = settings.value;
+  return startTone(midiToFrequency(midi), { volume: s.volume, waveform: s.tuneWaveform });
+}
+
+const COMPARE_NOTE = 1.1;
+const COMPARE_GAP = 0.25;
+
+/** Anchor tune reveal: where you left the tone, then the real anchor. */
+export function playTuneComparison(answerMidi: number, referenceMidi: number): Promise<void> {
+  const s = settings.value;
+  const step = noteSpan(COMPARE_NOTE, s.tuneWaveform) + COMPARE_GAP;
+  return playTimeline(
+    [answerMidi, referenceMidi].map((midi, i) => ({
+      frequency: midiToFrequency(midi),
+      at: i * step,
+      duration: COMPARE_NOTE,
+      volume: s.volume,
+    })),
+    s.tuneWaveform,
+  );
+}
+
+/** Try a tuning sound on a random note, never the anchor, which would hand over a reference. */
+export function previewToneSound(waveform: ToneWaveform, avoid: number): Promise<void> {
+  let midi = 55 + Math.floor(Math.random() * 18);
+  if (midi % 12 === avoid) midi += 5;
+  return playTimeline(
+    [{ frequency: midiToFrequency(midi), at: 0, duration: COMPARE_NOTE, volume: settings.value.volume }],
+    waveform,
+  );
 }

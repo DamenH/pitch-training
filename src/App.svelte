@@ -1,19 +1,14 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { href, isTab, router, type Route } from './lib/router.svelte';
+  import { href, isTab, modesFor, router, type Route } from './lib/router.svelte';
   import { toast } from './lib/toast.svelte';
-  import {
-    cycleIdentifyMode,
-    IDENTIFY_MODE_KINDS,
-    IDENTIFY_MODE_LABELS,
-    identifyMode,
-    nextIdentifyMode,
-  } from './lib/identifyMode.svelte';
+  import { IDENTIFY_MODE_KINDS, identifyModes } from './lib/identifyMode.svelte';
   import ImportPage from './pages/ImportPage.svelte';
   import ReferencePage from './pages/ReferencePage.svelte';
   import ExercisePage from './pages/ExercisePage.svelte';
   import SettingsPage from './pages/SettingsPage.svelte';
   import HistoryPage from './pages/HistoryPage.svelte';
+  import AnchorPage from './pages/AnchorPage.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
 
   interface NavItem {
@@ -25,6 +20,7 @@
   const TABS: NavItem[] = [
     { route: 'reference', label: 'Reference', icon: 'piano' },
     { route: 'identify', label: 'Identify', icon: 'ear' },
+    { route: 'anchor', label: 'Anchor', icon: 'anchor' },
     { route: 'sing-practice', label: 'Sing', icon: 'mic' },
     { route: 'sing-test', label: 'Test', icon: 'check' },
   ];
@@ -37,6 +33,7 @@
   const TITLES: Record<Route, string> = {
     reference: 'Reference',
     identify: 'Identify',
+    anchor: 'Anchor',
     'sing-practice': 'Sing',
     'sing-test': 'Sing test',
     import: 'Import',
@@ -48,6 +45,7 @@
   const WIDTHS: Record<Route, string> = {
     reference: '1120px',
     identify: '640px',
+    anchor: '640px',
     'sing-practice': '640px',
     'sing-test': '640px',
     import: '640px',
@@ -58,10 +56,13 @@
   let main: HTMLElement | undefined = $state();
   let scrolled = $state(false);
   const pushed = $derived(!isTab(router.current));
-  const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyMode.value]);
+  const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyModes.value]);
+  const modes = $derived(modesFor(router.current));
+  /** Exercise screens fill the height on phones, so their answer controls sit above the tab bar. */
+  const fills = $derived(router.current === 'identify' || router.current === 'anchor');
 
   $effect(() => {
-    const title = router.current === 'identify' ? `Identify ${IDENTIFY_MODE_LABELS[identifyMode.value]}` : TITLES[router.current];
+    const title = modes ? `${TITLES[router.current]} ${modes.labels[modes.value]}` : TITLES[router.current];
     document.title = `${title} · Pitch Training`;
   });
 
@@ -129,7 +130,7 @@
   id="main"
   bind:this={main}
   tabindex="-1"
-  class:identify-page={router.current === 'identify'}
+  class:fill-page={fills}
   style:--page-max={WIDTHS[router.current]}
 >
   <header class="pagebar" class:scrolled class:pushed>
@@ -139,17 +140,18 @@
       {/if}
       <div class="page-title">
         <h1>{TITLES[router.current]}</h1>
-        {#if router.current === 'identify'}
+        {#if modes && modes.order.length > 1}
           <button
             type="button"
-            class="identify-mode"
-            class:octaves={identifyMode.value === 'octaves'}
-            class:chroma={identifyMode.value === 'chroma'}
-            aria-label={`Identify ${identifyMode.value} mode; switch to ${nextIdentifyMode(identifyMode.value)}`}
-            onclick={cycleIdentifyMode}
+            class="mode"
+            data-mode={`${modes.route}-${modes.value}`}
+            aria-label={`${TITLES[router.current]} ${modes.value} mode; switch to ${modes.next()}`}
+            onclick={() => modes.cycle()}
           >
-            {IDENTIFY_MODE_LABELS[identifyMode.value]}
+            {modes.labels[modes.value]}
           </button>
+        {:else if modes}
+          <span class="mode" data-mode={`${modes.route}-${modes.value}`}>{modes.labels[modes.value]}</span>
         {/if}
       </div>
       <div class="bar-tools">
@@ -167,6 +169,8 @@
       <ReferencePage />
     {:else if router.current === 'identify'}
       {#key identifyKind}<ExercisePage kind={identifyKind} />{/key}
+    {:else if router.current === 'anchor'}
+      <AnchorPage />
     {:else if router.current === 'sing-practice'}
       <ExercisePage kind="sing-practice" />
     {:else if router.current === 'sing-test'}
@@ -269,7 +273,9 @@
     flex: 0 1 auto;
   }
 
-  .identify-mode {
+  .mode {
+    display: inline-flex;
+    align-items: center;
     min-height: 40px;
     padding: 0 12px;
     border: 1px solid color-mix(in srgb, var(--accent) 75%, var(--border));
@@ -284,25 +290,31 @@
       background-color 160ms;
   }
 
-  .identify-mode.octaves {
+  .mode[data-mode='identify-octaves'] {
     border-color: var(--octave);
     background: var(--octave);
     color: var(--octave-text);
   }
 
-  .identify-mode.chroma {
+  .mode[data-mode='identify-chroma'] {
     border-color: var(--chroma);
     background: var(--chroma);
     color: var(--chroma-text);
   }
 
-  .identify-mode:active {
+  .mode[data-mode^='anchor-'] {
+    border-color: var(--anchor);
+    background: var(--anchor);
+    color: var(--anchor-text);
+  }
+
+  button.mode:active {
     transform: scale(0.96);
     filter: brightness(0.92);
   }
 
   @media (hover: hover) {
-    .identify-mode:hover {
+    button.mode:hover {
       filter: brightness(1.08);
     }
   }
@@ -335,13 +347,13 @@
   }
 
   @media (orientation: portrait) and (max-width: 899px) {
-    main.identify-page {
+    main.fill-page {
       display: flex;
       flex-direction: column;
       min-height: 100dvh;
       box-sizing: border-box;
     }
-    .identify-page .page {
+    .fill-page .page {
       display: flex;
       flex: 1;
       flex-direction: column;
@@ -360,7 +372,7 @@
     bottom: 0;
     z-index: 10;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
     background: color-mix(in srgb, var(--surface) 90%, transparent);
     backdrop-filter: saturate(1.4) blur(14px);
