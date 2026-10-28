@@ -6,10 +6,11 @@ import {
   evaluateTune,
   gradeTune,
   isCold,
+  TUNE_EDGE_JITTER,
   TUNE_MIN_START_CENTS,
-  TUNE_SPAN,
+  TUNE_REACH,
+  TUNE_START_SPREAD,
   tuneError,
-  tuneWindow,
 } from '../src/domain/anchor';
 import { entryFromTune, sanitizeHistory, summarize, tuneStats, type HistoryEntry } from '../src/domain/history';
 import { defaultSettings, sanitizeSettings, type Settings } from '../src/domain/settings';
@@ -47,29 +48,33 @@ describe('tuneError', () => {
 });
 
 describe('createTuneRound', () => {
-  it('keeps the range inside the Identify octaves and always reaches an anchor', () => {
+  it('always reaches the anchor note and the octaves either side of it', () => {
     const rng = seeded(1);
-    const s = settings({ playbackOctaveMin: 3, playbackOctaveMax: 5, anchorPitchClass: 4 });
+    const s = settings({ anchorPitchClass: 4, anchorOctave: 4 });
     for (let i = 0; i < 500; i++) {
       const r = createTuneRound(s, rng, false);
-      expect(r.low).toBeGreaterThanOrEqual(48);
-      expect(r.low + TUNE_SPAN).toBeLessThanOrEqual(84);
-      expect(r.startMidi).toBeGreaterThanOrEqual(r.low);
-      expect(r.startMidi).toBeLessThanOrEqual(r.low + TUNE_SPAN);
+      expect(r.target).toBe(64);
+      expect(r.low).toBeLessThanOrEqual(64 - 12);
+      expect(r.high).toBeGreaterThanOrEqual(64 + 12);
+      expect(r.low).toBeGreaterThanOrEqual(64 - TUNE_REACH - TUNE_EDGE_JITTER);
+      expect(r.high).toBeLessThanOrEqual(64 + TUNE_REACH + TUNE_EDGE_JITTER);
+      expect(Math.abs(r.startMidi - 64)).toBeLessThanOrEqual(TUNE_START_SPREAD);
       expect(Math.abs(tuneError(r.startMidi, 4))).toBeGreaterThanOrEqual(TUNE_MIN_START_CENTS);
       expect(r.anchor).toBe(4);
+      expect(r.exact).toBe(false);
     }
   });
 
-  it('widens a single octave to the full span around it', () => {
-    const low = tuneWindow(settings({ playbackOctaveMin: 4, playbackOctaveMax: 4 }), () => 0.5);
-    expect(low).toBe(60 + 6 - TUNE_SPAN / 2);
+  it('moves both ends of the range, so neither is a reference', () => {
+    const rng = seeded(2);
+    const rounds = Array.from({ length: 50 }, () => createTuneRound(settings(), rng, false));
+    expect(new Set(rounds.map((r) => Math.round(r.low))).size).toBeGreaterThan(5);
+    expect(new Set(rounds.map((r) => Math.round(r.high))).size).toBeGreaterThan(5);
   });
 
-  it('varies where the range sits, so no position gives the anchor away', () => {
-    const rng = seeded(2);
-    const lows = new Set(Array.from({ length: 50 }, () => Math.round(createTuneRound(settings(), rng, false).low)));
-    expect(lows.size).toBeGreaterThan(5);
+  it('stays audible at the lowest anchor octave', () => {
+    const r = createTuneRound(settings({ anchorOctave: 2 }), () => 0, false);
+    expect(r.low).toBeGreaterThanOrEqual(24);
   });
 });
 
@@ -83,18 +88,32 @@ describe('grading', () => {
     expect(gradeTune(12, 15)).toBe('close');
   });
 
-  it('evaluates against the anchor nearest the answer', () => {
+  it('evaluates against the anchor nearest the answer at the any-octave level', () => {
     const round = createTuneRound(settings(), seeded(3), true);
     const result = evaluateTune(round, 71.7, 50);
     expect(result.referenceMidi).toBe(72);
     expect(result.cents).toBeCloseTo(-30);
     expect(result.correct).toBe(true);
+    expect(result.wrongOctave).toBe(false);
+  });
+
+  it('only counts the chosen octave at the exact level', () => {
+    const round = createTuneRound(settings({ tuneLevel: 'exact' }), seeded(6), false);
+    expect(round.exact).toBe(true);
+    const hit = evaluateTune(round, 60.1, 50);
+    expect(hit).toMatchObject({ referenceMidi: 60, correct: true, wrongOctave: false });
+    const octaveOff = evaluateTune(round, 72.05, 50);
+    expect(octaveOff.referenceMidi).toBe(60);
+    expect(octaveOff.cents).toBeCloseTo(1205);
+    expect(octaveOff.pitchClassCents).toBeCloseTo(5);
+    expect(octaveOff).toMatchObject({ nearestMidi: 72, grade: 'missed', correct: false, wrongOctave: true });
+    expect(evaluateTune(round, 74, 50).wrongOctave).toBe(false);
   });
 
   it('clamps dragging to the range', () => {
     const round = createTuneRound(settings(), seeded(4), false);
     expect(clampTune(round, round.low - 3)).toBe(round.low);
-    expect(clampTune(round, round.low + TUNE_SPAN + 1)).toBe(round.low + TUNE_SPAN);
+    expect(clampTune(round, round.high + 1)).toBe(round.high);
   });
 });
 
@@ -121,6 +140,7 @@ describe('anchor history', () => {
       cents: -20,
       startMidi: 63.46,
       cold: true,
+      exact: false,
     });
     expect(sanitizeHistory([entry])).toEqual([entry]);
   });
@@ -132,6 +152,12 @@ describe('anchor history', () => {
     expect(stats.cold).toEqual({ rounds: 1, meanMiss: 20, bias: -20 });
   });
 
+  it('records the error from the nearest anchor at the exact level', () => {
+    const exact = createTuneRound(settings({ tuneLevel: 'exact' }), seeded(7), false);
+    const e = entryFromTune(exact, evaluateTune(exact, 72.2, 50), { responseMs: 1000 });
+    expect(e).toMatchObject({ exact: true, outcome: 'incorrect', targetMidi: 60, cents: 20 });
+  });
+
   it('does not count tuning towards note accuracy', () => {
     expect(summarize([entry]).byPitchClass[0].answered).toBe(0);
     expect(summarize([entry]).byExercise['anchor-tune'].answered).toBe(1);
@@ -140,9 +166,21 @@ describe('anchor history', () => {
 
 describe('anchor settings', () => {
   it('sanitizes the anchor options', () => {
-    const s = sanitizeSettings({ anchorPitchClass: 14, tuneWaveform: 'piano', tuneToleranceCents: 500, tuneMasker: 'yes' });
+    const s = sanitizeSettings({
+      anchorPitchClass: 14,
+      anchorOctave: 9,
+      tuneLevel: 'hard',
+      tuneWaveform: 'organ',
+      tuneAutoStrike: 1,
+      tuneToleranceCents: 500,
+      tuneMasker: 'yes',
+    });
     expect(s.anchorPitchClass).toBe(2);
+    expect(s.anchorOctave).toBe(6);
+    expect(s.tuneLevel).toBe('any');
     expect(s.tuneWaveform).toBe('soft');
+    expect(s.tuneAutoStrike).toBe(false);
+    expect(sanitizeSettings({ tuneWaveform: 'piano' }).tuneWaveform).toBe('piano');
     expect(s.tuneToleranceCents).toBe(100);
     expect(s.tuneMasker).toBe(true);
   });

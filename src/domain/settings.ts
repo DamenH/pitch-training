@@ -4,9 +4,8 @@ export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
 export type Waveform = 'piano' | 'soft' | 'sine' | 'triangle' | 'warm';
 export const WAVEFORMS: readonly Waveform[] = ['piano', 'soft', 'sine', 'triangle', 'warm'];
-/** Sounds that can sustain, for tuning by ear (the piano decays). */
-export type ToneWaveform = Exclude<Waveform, 'piano'>;
-export const TONE_WAVEFORMS: readonly ToneWaveform[] = ['soft', 'sine', 'triangle', 'warm'];
+/** Anchor tune: any octave of the anchor counts, or only the chosen one. */
+export type TuneLevel = 'any' | 'exact';
 /** Identify notes: whether replays repeat the note's octave, jump to another, or sweep up and down the range. */
 export type ReplayOctave = 'same' | 'random' | 'sweep';
 /** Identify chroma: how far a "different" note is from the first note. */
@@ -44,8 +43,13 @@ export interface Settings {
   referenceOctaves: ReferenceOctaves;
   /** Anchor: the note every Anchor mode trains. */
   anchorPitchClass: PitchClass;
-  /** Anchor tune: the sustained sound you tune. */
-  tuneWaveform: ToneWaveform;
+  /** Anchor: the octave rounds centre on, and the target at the exact level. */
+  anchorOctave: number;
+  tuneLevel: TuneLevel;
+  /** Anchor tune: the sound you tune. Synth sounds sustain; the piano is struck. */
+  tuneWaveform: Waveform;
+  /** Anchor tune with the piano: strike by itself when you stop turning. */
+  tuneAutoStrike: boolean;
   /** Anchor tune: scramble before each round, so the last reveal can't be used as a reference. */
   tuneMasker: boolean;
   /** Anchor tune: ± cents that count as finding the note. */
@@ -64,6 +68,8 @@ export const DURATION_MIN = 0.3;
 export const DURATION_MAX = 4;
 export const TUNE_TOLERANCE_MIN = 10;
 export const TUNE_TOLERANCE_MAX = 100;
+export const ANCHOR_OCTAVE_MIN = 2;
+export const ANCHOR_OCTAVE_MAX = 6;
 
 export interface VocalPreset {
   id: string;
@@ -104,7 +110,10 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   scramble: false,
   referenceOctaves: 1,
   anchorPitchClass: 0,
+  anchorOctave: 4,
+  tuneLevel: 'any',
   tuneWaveform: 'soft',
+  tuneAutoStrike: false,
   tuneMasker: true,
   tuneToleranceCents: 50,
 });
@@ -181,7 +190,10 @@ export function sanitizeSettings(input: unknown): Settings {
       typeof raw.anchorPitchClass === 'number' && Number.isInteger(raw.anchorPitchClass)
         ? toPitchClass(raw.anchorPitchClass)
         : d.anchorPitchClass,
-    tuneWaveform: oneOf(raw.tuneWaveform, TONE_WAVEFORMS, d.tuneWaveform),
+    anchorOctave: Math.round(clamp(num(raw.anchorOctave, d.anchorOctave), ANCHOR_OCTAVE_MIN, ANCHOR_OCTAVE_MAX)),
+    tuneLevel: oneOf(raw.tuneLevel, ['any', 'exact'] as const, d.tuneLevel),
+    tuneWaveform: oneOf(raw.tuneWaveform, WAVEFORMS, d.tuneWaveform),
+    tuneAutoStrike: typeof raw.tuneAutoStrike === 'boolean' ? raw.tuneAutoStrike : d.tuneAutoStrike,
     tuneMasker: typeof raw.tuneMasker === 'boolean' ? raw.tuneMasker : d.tuneMasker,
     tuneToleranceCents: Math.round(
       clamp(num(raw.tuneToleranceCents, d.tuneToleranceCents), TUNE_TOLERANCE_MIN, TUNE_TOLERANCE_MAX),

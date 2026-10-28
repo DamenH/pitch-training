@@ -3,15 +3,14 @@
   import {
     clampTune,
     evaluateTune,
-    TUNE_SPAN,
     type TuneGrade,
     type TuneResult,
     type TuneRound,
   } from '../domain/anchor';
-  import { midiToFrequency, pitchClassName } from '../domain/music';
+  import { midiToFrequency, noteName, pitchClassName } from '../domain/music';
   import { stopAll, type Tone } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playTuneComparison, startTuneTone } from '../lib/playback';
+  import { playTuneComparison, preloadTuneRange, startTuneTone, strikeTuneNote } from '../lib/playback';
   import { playScramble } from '../lib/scramble.svelte';
   import { describeDeviation, signedCents } from '../lib/format';
   import { haptic } from '../lib/native';
@@ -39,9 +38,15 @@
   const RIDGE = 14;
   /** The reveal meter spans ± this many cents. */
   const METER = 100;
+  /** Auto-strike waits this long after the last turn, so a drag isn't a run of notes. */
+  const STRIKE_PAUSE_MS = 350;
 
   const s = $derived(settings.value);
-  const anchorName = $derived(pitchClassName(round.anchor, s.spelling));
+  /** "C" at the any-octave level, "C4" at the exact level. */
+  const anchorName = $derived(round.exact ? noteName(round.target, s.spelling) : pitchClassName(round.anchor, s.spelling));
+  /** The piano can't sustain, so it is struck: by the Strike button, or by itself after turning. */
+  // svelte-ignore state_referenced_locally
+  const struck = s.tuneWaveform === 'piano';
 
   let phase = $state<'ready' | 'masking' | 'tuning' | 'revealed'>('ready');
   // svelte-ignore state_referenced_locally
@@ -51,6 +56,7 @@
   let startedAt = 0;
   let destroyed = false;
   let atEdge = false;
+  let strikeTimer: ReturnType<typeof setTimeout> | undefined;
 
   async function begin() {
     if (phase !== 'ready') return;
@@ -60,8 +66,15 @@
       if (destroyed) return;
     }
     phase = 'tuning';
-    tone = startTuneTone(midi);
+    if (struck) strike();
+    else tone = startTuneTone(midi);
     startedAt = Date.now();
+  }
+
+  function strike() {
+    if (phase !== 'tuning') return;
+    clearTimeout(strikeTimer);
+    void strikeTuneNote(midi);
   }
 
   function move(cents: number) {
@@ -72,10 +85,15 @@
     atEdge = edge;
     midi = next;
     tone?.retune(midiToFrequency(midi));
+    if (struck && s.tuneAutoStrike) {
+      clearTimeout(strikeTimer);
+      strikeTimer = setTimeout(strike, STRIKE_PAUSE_MS);
+    }
   }
 
   function lock() {
     if (phase !== 'tuning') return;
+    clearTimeout(strikeTimer);
     tone?.stop();
     tone = null;
     result = evaluateTune(round, midi, s.tuneToleranceCents);
@@ -130,6 +148,12 @@
       else if (phase === 'revealed') onnext();
       return;
     }
+    if (e.key === ' ' && struck && phase === 'tuning') {
+      if (e.target instanceof HTMLButtonElement) return;
+      e.preventDefault();
+      strike();
+      return;
+    }
     const step = e.shiftKey ? BIG_NUDGE : NUDGE;
     const delta = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: 100, PageDown: -100 }[e.key];
     if (delta !== undefined && phase === 'tuning') {
@@ -139,11 +163,13 @@
   }
 
   onMount(() => {
+    if (struck) preloadTuneRange(round.low, round.high);
     if (autostart) void begin();
   });
 
   onDestroy(() => {
     destroyed = true;
+    clearTimeout(strikeTimer);
     tone?.stop();
     stopAll();
   });
@@ -151,7 +177,7 @@
   /** Ridges scroll with the pitch, like turning a knob. */
   const turn = $derived((((-midi * 100) / CENTS_PER_PX) % RIDGE + RIDGE) % RIDGE);
   /** Position within this round's random range: says nothing about where the anchor is. */
-  const position = $derived(Math.round(((midi - round.low) / TUNE_SPAN) * 100));
+  const position = $derived(Math.round(((midi - round.low) / (round.high - round.low)) * 100));
 
   const GRADES: Record<TuneGrade, string> = {
     perfect: 'Perfect',
@@ -161,6 +187,11 @@
   };
   const detail = $derived.by(() => {
     if (!result) return '';
+    if (result.wrongOctave) {
+      const off = Math.round(result.pitchClassCents);
+      const how = off === 0 ? 'right on it' : describeDeviation(off).replace(/ (from|of)$/, '');
+      return `Right note, wrong octave: you were on ${noteName(result.nearestMidi, s.spelling)}, ${how}.`;
+    }
     const r = Math.round(result.cents);
     if (Math.abs(r) < 100) {
       const text = `${describeDeviation(r)} ${anchorName}.`;
@@ -178,7 +209,7 @@
 
 <section class="stack tune" aria-label={`Tune to ${anchorName}`}>
   <p class="target">
-    Tune to <strong>{anchorName}</strong> <span class="muted">any octave</span>
+    Tune to <strong>{anchorName}</strong>{#if !round.exact} <span class="muted">any octave</span>{/if}
   </p>
 
   {#if phase === 'ready'}
@@ -188,7 +219,11 @@
         <span>Start round</span>
       </button>
       <p class="muted small">
-        A tone plays at a random pitch. Drag the wheel until it is {anchorName}, then lock it in.
+        {#if struck}
+          A piano note plays at a random pitch. Turn the wheel, strike to hear it, and lock it in at {anchorName}.
+        {:else}
+          A tone plays at a random pitch. Drag the wheel until it is {anchorName}, then lock it in.
+        {/if}
       </p>
     </div>
   {:else if phase === 'revealed' && result}
@@ -231,10 +266,15 @@
     >
       <span class="hint">{phase === 'masking' ? 'Clearing your ear…' : 'Drag up or down'}</span>
     </div>
-    <div class="nudges">
+    <div class="nudges" class:struck>
       <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => move(-NUDGE)} title="Lower (↓)">
         Lower {NUDGE}¢
       </button>
+      {#if struck}
+        <button type="button" class="btn small strike" disabled={phase !== 'tuning'} onclick={strike} title="Strike (Space)">
+          <Icon name="play" size={16} /> Strike
+        </button>
+      {/if}
       <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => move(NUDGE)} title="Higher (↑)">
         Higher {NUDGE}¢
       </button>
@@ -365,6 +405,13 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
+  }
+  .nudges.struck {
+    grid-template-columns: 1fr 1.4fr 1fr;
+  }
+  .strike {
+    border-color: var(--anchor);
+    color: var(--anchor);
   }
 
   .reveal {

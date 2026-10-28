@@ -2,7 +2,7 @@ import { noteSpan, playNote, playTimeline, startPolyNote, startTone, type Tone }
 import { preloadPianoRange } from '../audio/piano';
 import { chromaTimeline, type ChromaCue, type Question } from '../domain/exercise';
 import { midiToFrequency } from '../domain/music';
-import type { ToneWaveform } from '../domain/settings';
+import type { Waveform } from '../domain/settings';
 import { settings } from './settings.svelte';
 
 function options() {
@@ -64,6 +64,18 @@ export function startTuneTone(midi: number): Tone {
   return startTone(midiToFrequency(midi), { volume: s.volume, waveform: s.tuneWaveform });
 }
 
+/** Anchor tune with the piano: one struck note at the current (fractional) pitch. */
+export function strikeTuneNote(midi: number): Promise<void> {
+  const s = settings.value;
+  return playTimeline([{ frequency: midiToFrequency(midi), at: 0, duration: STRIKE_NOTE, volume: s.volume }], 'piano');
+}
+
+/** Fetch the piano samples a tune round can reach, if the piano is its sound. */
+export function preloadTuneRange(low: number, high: number): void {
+  if (settings.value.tuneWaveform === 'piano') preloadPianoRange(low, high);
+}
+
+const STRIKE_NOTE = 1.6;
 const COMPARE_NOTE = 1.1;
 const COMPARE_GAP = 0.25;
 
@@ -83,7 +95,7 @@ export function playTuneComparison(answerMidi: number, referenceMidi: number): P
 }
 
 /** Try a tuning sound on a random note, never the anchor, which would hand over a reference. */
-export function previewToneSound(waveform: ToneWaveform, avoid: number): Promise<void> {
+export function previewToneSound(waveform: Waveform, avoid: number): Promise<void> {
   let midi = 55 + Math.floor(Math.random() * 18);
   if (midi % 12 === avoid) midi += 5;
   return playTimeline(

@@ -29,12 +29,14 @@ export interface HistoryEntry {
   answer: number | null;
   /** Identify chroma only: the second note of the pair. */
   comparisonMidi: number | null;
-  /** Sing and anchor tune: signed deviation from the reference, in cents. */
+  /** Sing: signed deviation from the reference. Anchor tune: from the nearest anchor in any octave. In cents. */
   cents: number | null;
   /** Anchor tune only: the fractional MIDI pitch the tone started at. */
   startMidi: number | null;
   /** Anchor tune only: nothing had been answered for a while, so no recent reference helped. */
   cold: boolean | null;
+  /** Anchor tune only: only the chosen octave counted. */
+  exact: boolean | null;
   policy: ScoringPolicy | null;
   /** Milliseconds from question start (identify: first playback) to submission. */
   responseMs: number;
@@ -53,6 +55,7 @@ export function entryFromResult(
     comparisonMidi: null,
     startMidi: null,
     cold: null,
+    exact: null,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
   if (result.kind === 'identify') {
@@ -110,10 +113,12 @@ export function entryFromTune(
     outcome: result.correct ? 'correct' : 'incorrect',
     answer: Math.round(result.answerMidi * 100) / 100,
     comparisonMidi: null,
-    cents: Math.round(result.cents),
+    // From the nearest anchor at both levels, so accuracy stats compare like with like.
+    cents: Math.round(result.pitchClassCents),
     policy: null,
     startMidi: Math.round(round.startMidi * 100) / 100,
     cold: round.cold,
+    exact: round.exact,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
 }
@@ -224,6 +229,7 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
       cents: typeof e.cents === 'number' ? e.cents : null,
       startMidi: typeof e.startMidi === 'number' ? e.startMidi : null,
       cold: typeof e.cold === 'boolean' ? e.cold : null,
+      exact: typeof e.exact === 'boolean' ? e.exact : null,
       policy: e.policy === 'exact' || e.policy === 'pitch-class' ? e.policy : null,
       responseMs: e.responseMs,
     });

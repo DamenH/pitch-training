@@ -7,6 +7,9 @@ Steps 1–4 shipped on 2026-10-27:
 3. Soft synth voice, defined as a preset in `src/audio/presets.ts`.
 4. Anchor tab (`#/anchor/<mode>`) with **Tune**, an on-page Options sheet, and cold-round tracking.
 
+Then, on 2026-10-28: Tune's range reaches about two octaves either side of the anchor note
+(C4 by default) with randomly moved ends, an *Exact octave* level, and a struck *Piano* sound.
+
 This file records the agreed next steps.
 
 ---
@@ -68,6 +71,15 @@ should break short-term pitch memory more reliably than random notes alone.
   Anchor → Tuning sound).
 - Presets are stored as data, so `sanitizeSettings` must validate user presets and fall back to `soft`.
 - Preview plays a random note, never the anchor.
+
+## 9. More tuning sounds
+
+- **Cleaner Soft:** drop the ±4¢ detune, whose slow beating blurs the pitch being judged.
+- **More synth presets:** organ, clarinet-ish, flute-ish, strings or pad, a voice "ooh".
+- **Recorded cello and violin:** free sustained samples (e.g. VSCO 2 Community Edition; check the
+  licence), with loop points prepared once by a script so a note holds while you tune. Several
+  recordings per instrument, so no note is stretched far; ~1–3 MB each, loaded only when chosen.
+  Keep vibrato small or off: it blurs the pitch.
 
 ---
 

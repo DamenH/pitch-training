@@ -17,12 +17,14 @@
   import { flushSync, onDestroy, untrack } from 'svelte';
   import { createTuneRound, isCold, type TuneResult } from '../domain/anchor';
   import { entryFromTune } from '../domain/history';
-  import { ALL_PITCH_CLASSES, pitchClassName, spokenPitchClassName } from '../domain/music';
+  import { ALL_PITCH_CLASSES, noteToMidi, pitchClassName, spokenPitchClassName } from '../domain/music';
   import {
-    TONE_WAVEFORMS,
+    ANCHOR_OCTAVE_MAX,
+    ANCHOR_OCTAVE_MIN,
     TUNE_TOLERANCE_MAX,
     TUNE_TOLERANCE_MIN,
-    type ToneWaveform,
+    type TuneLevel,
+    type Waveform,
   } from '../domain/settings';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
@@ -43,9 +45,13 @@
 
   // An answered round is never reopened, so it can't be scored twice.
   const saved = untrack(() => session);
-  let round = $state<TuneRound>(
-    untrack(() => (saved && !saved.scored && saved.round.anchor === settings.value.anchorPitchClass ? saved.round : makeRound())),
-  );
+  let round = $state<TuneRound>(untrack(() => (saved && !saved.scored && fitsSettings(saved.round) ? saved.round : makeRound())));
+
+  /** A saved round is only resumed if the anchor options haven't changed since. */
+  function fitsSettings(r: TuneRound): boolean {
+    const v = settings.value;
+    return r.anchor === v.anchorPitchClass && r.target === noteToMidi(v.anchorPitchClass, v.anchorOctave) && r.exact === (v.tuneLevel === 'exact');
+  }
   let scored = false;
   let autostart = $state(false);
   let rounds = $state(saved?.rounds ?? 0);
@@ -57,7 +63,8 @@
     scored = true;
     rounds += 1;
     if (result.correct) found += 1;
-    totalMiss += Math.abs(result.cents);
+    // Like History, from the nearest anchor, so an octave slip doesn't swamp the average.
+    totalMiss += Math.abs(result.pitchClassCents);
     history.add(entryFromTune(round, result, { responseMs }));
   }
 
@@ -74,7 +81,10 @@
     stopAll();
   });
 
-  const SOUNDS: Record<ToneWaveform, string> = { soft: 'Soft', sine: 'Sine', triangle: 'Triangle', warm: 'Warm' };
+  const SOUNDS: [Waveform, string][] = [['soft', 'Soft'], ['sine', 'Sine'], ['triangle', 'Triangle'], ['warm', 'Warm'], ['piano', 'Piano']];
+  const LEVELS: [TuneLevel, string][] = [['any', 'Any octave'], ['exact', 'Exact octave']];
+  const OCTAVES = Array.from({ length: ANCHOR_OCTAVE_MAX - ANCHOR_OCTAVE_MIN + 1 }, (_, i) => ANCHOR_OCTAVE_MIN + i);
+  const anchorName = $derived(pitchClassName(s.anchorPitchClass, s.spelling));
   const avgMiss = $derived(rounds > 0 ? Math.round(totalMiss / rounds) : null);
 </script>
 
@@ -114,17 +124,50 @@
       {/each}
     </div>
   </fieldset>
-  <p class="muted small">A new note applies from the next round.</p>
+
+  <fieldset class="field">
+    <legend>Octave</legend>
+    <div class="segmented">
+      {#each OCTAVES as octave (octave)}
+        <label class:checked={s.anchorOctave === octave}>
+          <input type="radio" name="anchor-octave" value={octave} checked={s.anchorOctave === octave}
+            onchange={() => settings.update({ anchorOctave: octave })} />
+          {octave}
+        </label>
+      {/each}
+    </div>
+  </fieldset>
+
+  <fieldset class="field">
+    <legend>Level</legend>
+    <div class="segmented">
+      {#each LEVELS as [value, label] (value)}
+        <label class:checked={s.tuneLevel === value}>
+          <input type="radio" name="tune-level" {value} checked={s.tuneLevel === value}
+            onchange={() => settings.update({ tuneLevel: value })} />
+          {label}
+        </label>
+      {/each}
+    </div>
+  </fieldset>
+  <p class="muted small">
+    {#if s.tuneLevel === 'exact'}
+      Only {anchorName}{s.anchorOctave} counts: {anchorName} in another octave is a miss.
+    {:else}
+      Any {anchorName} counts. Rounds start around {anchorName}{s.anchorOctave}, which is always in reach.
+    {/if}
+    Changes apply from the next round.
+  </p>
 
   <div class="sound">
     <fieldset class="field">
       <legend>Tuning sound</legend>
       <div class="segmented">
-        {#each TONE_WAVEFORMS as value (value)}
+        {#each SOUNDS as [value, label] (value)}
           <label class:checked={s.tuneWaveform === value}>
             <input type="radio" name="tune-sound" {value} checked={s.tuneWaveform === value}
               onchange={() => settings.update({ tuneWaveform: value })} />
-            {SOUNDS[value]}
+            {label}
           </label>
         {/each}
       </div>
@@ -139,6 +182,22 @@
       <Icon name="play" size={16} />
     </button>
   </div>
+
+  {#if s.tuneWaveform === 'piano'}
+    <label class="toggle">
+      <span class="toggle-copy">
+        <strong>Strike when you stop turning</strong>
+        <small>Otherwise the piano only plays when you press Strike (or Space).</small>
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        class="switch"
+        checked={s.tuneAutoStrike}
+        onchange={(e) => settings.update({ tuneAutoStrike: e.currentTarget.checked })}
+      />
+    </label>
+  {/if}
 
   <label class="toggle">
     <span class="toggle-copy">
