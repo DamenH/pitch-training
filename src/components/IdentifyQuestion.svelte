@@ -15,7 +15,6 @@
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { playChromaPair, playMidi, playMidiPoly } from '../lib/playback';
-  import { showToast } from '../lib/toast.svelte';
   import { haptic, onPress } from '../lib/native';
   import { pitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from './Piano.svelte';
@@ -31,6 +30,9 @@
     onresult: (result: IdentifyAnyResult, responseMs: number) => void;
     onnext: () => void;
   } = $props();
+
+  const CHROMA_NEXT_MS = 1000;
+  const CHROMA_NEXT_MISS_MS = 1800;
 
   const s = $derived(settings.value);
   let plays = $state(0);
@@ -48,6 +50,8 @@
   let cue = $state<ChromaCue | null>(null);
   /** Whether the current play has reached the first note, so a masker can be shown before or between. */
   let heardFirst = $state(false);
+  /** Chroma: moves on to the next pair once the verdict has been seen. */
+  let advanceTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Single-play applies before the answer; afterwards replay is always allowed.
   const canPlay = $derived(result !== null || s.replayPolicy === 'unlimited' || plays === 0);
@@ -118,13 +122,8 @@
     }
     haptic(result.correct ? 'success' : 'error');
     onresult(result, Date.now() - (firstPlayAt ?? question.createdAt));
-    if (result.kind === 'identify-chroma') {
-      // Straight on to the next pair. The toast deliberately leaves out note names:
-      // a named note is a reference that would make the next judgement relative.
-      const truth = chromaTruth === 'same' ? 'the same note' : 'different notes';
-      showToast(result.correct ? `✓ Correct: ${truth}` : `✗ Not quite: ${truth}`);
-      onnext();
-    }
+    // Chroma moves on by itself, after long enough to see the verdict (longer for a miss).
+    if (result.kind === 'identify-chroma') advanceTimer = setTimeout(onnext, result.correct ? CHROMA_NEXT_MS : CHROMA_NEXT_MISS_MS);
   }
 
   /** Chroma: answering submits at once. */
@@ -140,6 +139,7 @@
     document.documentElement.dataset.cue = cue === 'first' || cue === 'second' ? 'test' : (cue ?? 'idle');
   });
   onDestroy(() => {
+    clearTimeout(advanceTimer);
     delete document.documentElement.dataset.cue;
   });
 
@@ -214,7 +214,7 @@
   </div>
 
   {#if chromaMode}
-    <fieldset class="chroma-answer" disabled={result !== null || plays === 0}>
+    <fieldset class="chroma-answer" class:answered={result !== null} disabled={plays === 0}>
       <legend>Two notes in different octaves. Is it the same note?</legend>
       <div class="choices">
         {#each [['same', 'Same note', 'S'], ['different', 'Different', 'D']] as const as [value, label, key] (value)}
@@ -223,6 +223,7 @@
             class:selected={selectedChroma === value}
             class:correct={result !== null && chromaTruth === value}
             class:wrong={result !== null && selectedChroma === value && chromaTruth !== value}
+            class:chosen={result !== null && selectedChroma === value}
             aria-pressed={selectedChroma === value}
             title={`${label} (${key})`}
             onclick={() => answerChroma(value)}
@@ -274,9 +275,8 @@
         <p class="title">{result.correct ? 'Correct' : 'Not quite'}</p>
         <p class="detail">
           {#if result.kind === 'identify-chroma'}
-            <strong>{noteName(question.targetMidi, s.spelling)}</strong> then
-            <strong>{noteName(comparisonMidi, s.spelling)}</strong>:
-            {chromaTruth === 'same' ? 'the same note' : 'different notes'}.
+            <!-- No note names: a named note is a reference that would make the next pair relative. -->
+            They were {chromaTruth === 'same' ? 'the same note' : 'different notes'}.
           {:else if result.kind === 'identify-octave'}
             It was <strong>{noteName(question.targetMidi, s.spelling)}</strong>{#if !result.correct}.
               You chose <strong>{pitchClassName(question.targetPitchClass, s.spelling)}{result.answer}</strong>{/if}.
@@ -444,6 +444,21 @@
     border-color: var(--chroma);
     background: var(--chroma);
     color: var(--chroma-text);
+  }
+  /* Once answered, the buttons only show the verdict: the right answer green, a wrong pick red. */
+  .chroma-answer.answered .choices button {
+    pointer-events: none;
+  }
+  .chroma-answer.answered .choices button:not(.correct, .wrong) {
+    opacity: 0.45;
+  }
+  .choices button.chosen {
+    animation: pop 220ms var(--ease);
+  }
+  @keyframes pop {
+    50% {
+      transform: scale(1.04);
+    }
   }
   .choices button.correct {
     border-color: var(--good);

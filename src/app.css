@@ -138,10 +138,13 @@ body {
 }
 
 /* Identify chroma: the page tints while a test note sounds, and stays plain through the masker. */
+/* The html element too, since body can stop short of the bottom of a tall window. */
+html[data-cue],
 html[data-cue] body {
   transition: background-color 160ms;
 }
 
+html[data-cue='test'],
 html[data-cue='test'] body {
   background: color-mix(in srgb, var(--chroma) 12%, var(--bg));
 }
