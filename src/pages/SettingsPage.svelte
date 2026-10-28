@@ -262,7 +262,7 @@
         {/each}
       </div>
     </fieldset>
-    <p class="muted small">Random notes play before the pair and between the two, so you can't hold the first note in memory. The page tints while each test note sounds.</p>
+    <p class="muted small">Random notes play between the two notes (and before the first when you replay), so you can't hold the first note in memory. The numbered circles light up while each test note sounds.</p>
     </div>
   </section>
 

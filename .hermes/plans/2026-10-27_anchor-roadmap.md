@@ -3,7 +3,7 @@
 Steps 1–4 shipped on 2026-10-27:
 
 1. Chroma answers straight away (one tap, toast, next pair).
-2. Chroma masker (random notes before and between the pair, with a page tint and 1/2 markers).
+2. Chroma masker (random notes between the pair, and before it on a replay, with 1/2 markers).
 3. Soft synth voice, defined as a preset in `src/audio/presets.ts`.
 4. Anchor tab (`#/anchor/<mode>`) with **Tune**, an on-page Options sheet, and cold-round tracking.
 

@@ -50,6 +50,8 @@
   let cue = $state<ChromaCue | null>(null);
   /** Whether the current play has reached the first note, so a masker can be shown before or between. */
   let heardFirst = $state(false);
+  /** Chroma replays start with a masker, shown as a gap before the first circle. */
+  let replaying = $state(false);
   /** Chroma: moves on to the next pair once the verdict has been seen. */
   let advanceTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -74,7 +76,8 @@
     notice = '';
     if (chromaMode) {
       heardFirst = false;
-      void playChromaPair(question, (c) => {
+      replaying = plays > 1;
+      void playChromaPair(question, replaying, (c) => {
         cue = c;
         if (c === 'first') heardFirst = true;
       });
@@ -133,15 +136,7 @@
     submit();
   }
 
-  // Tint the whole page while a test note sounds.
-  $effect(() => {
-    if (!chromaMode) return;
-    document.documentElement.dataset.cue = cue === 'first' || cue === 'second' ? 'test' : (cue ?? 'idle');
-  });
-  onDestroy(() => {
-    clearTimeout(advanceTimer);
-    delete document.documentElement.dataset.cue;
-  });
+  onDestroy(() => clearTimeout(advanceTimer));
 
   function pressKey(pc: PitchClass) {
     if (result?.kind === 'identify') {
@@ -205,7 +200,7 @@
     </button>
     {#if chromaMode}
       <div class="cues" aria-hidden="true">
-        {#if s.chromaMasker !== 'off'}<span class="cue-gap" class:on={cue === 'mask' && !heardFirst}></span>{/if}
+        {#if replaying && s.chromaMasker !== 'off'}<span class="cue-gap" class:on={cue === 'mask' && !heardFirst}></span>{/if}
         <span class="cue" class:on={cue === 'first'}>1</span>
         <span class="cue-gap" class:on={cue === 'mask' && heardFirst}></span>
         <span class="cue" class:on={cue === 'second'}>2</span>

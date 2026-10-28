@@ -266,12 +266,23 @@ describe('chroma timeline', () => {
     expect(steps[1]!.at).toBeGreaterThanOrEqual(1.8);
   });
 
-  it('masks before and between, in order, without overlapping the test notes', () => {
+  it('masks only between the notes on the first play', () => {
+    const rng = seeded(23);
+    const settings = s({ chromaMasker: 'short' });
+    const q = createQuestion('identify-chroma', settings, rng);
+    const steps = chromaTimeline(q, settings, rng, 1.8);
+    const n = CHROMA_MASKER_NOTES.short;
+    expect(steps.map((x) => x.cue)).toEqual(['first', ...Array(n).fill('mask'), 'second']);
+    expect(steps[0]!.at).toBe(0);
+    expect(steps[1]!.at).toBeGreaterThanOrEqual(1.8);
+  });
+
+  it('masks before and between on a replay, in order, without overlapping the test notes', () => {
     const rng = seeded(22);
     const settings = s({ chromaMasker: 'short' });
     for (let i = 0; i < 50; i++) {
       const q = createQuestion('identify-chroma', settings, rng);
-      const steps = chromaTimeline(q, settings, rng, 1.8);
+      const steps = chromaTimeline(q, settings, rng, 1.8, true);
       const n = CHROMA_MASKER_NOTES.short;
       expect(steps.map((x) => x.cue)).toEqual([
         ...Array(n).fill('mask'),

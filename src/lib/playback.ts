@@ -22,10 +22,14 @@ let chromaRun = 0;
  * Play a chroma pair, with any masker the settings ask for. `oncue` reports which part
  * is sounding as it starts, and null once playback ends or is interrupted.
  */
-export function playChromaPair(question: Question, oncue: (cue: ChromaCue | null) => void): Promise<void> {
+export function playChromaPair(
+  question: Question,
+  replay: boolean,
+  oncue: (cue: ChromaCue | null) => void,
+): Promise<void> {
   const mine = ++chromaRun;
   const s = settings.value;
-  const steps = chromaTimeline(question, s, Math.random, noteSpan(s.noteDuration, s.waveform));
+  const steps = chromaTimeline(question, s, Math.random, noteSpan(s.noteDuration, s.waveform), replay);
   const notes = steps.map((step) => ({
     frequency: midiToFrequency(step.midi),
     at: step.at,

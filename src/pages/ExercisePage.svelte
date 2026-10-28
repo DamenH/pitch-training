@@ -56,9 +56,7 @@
       question = makeQuestion(question);
     });
     const id = question.id;
-    // A chroma masker already starts each play with its own scramble.
-    const masked = kind === 'identify-chroma' && s.chromaMasker !== 'off';
-    if (s.scramble && !masked) await playScramble(question.targetPitchClass);
+    if (s.scramble) await playScramble(question.targetPitchClass);
     // Play the new round straight away, once any scramble has finished.
     if (question.id === id) identify?.autoplay();
   }

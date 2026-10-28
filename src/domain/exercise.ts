@@ -145,7 +145,7 @@ export function generateComparison(targetMidi: number, settings: Settings, rng: 
   return pick(wide.length > 0 ? wide : notes, rng);
 }
 
-/** Masking notes played before the first note and again between the two. */
+/** Masking notes played between the two notes (and before the first on a replay). */
 export const CHROMA_MASKER_NOTES: Record<ChromaMasker, number> = { off: 0, short: 5, long: 10 };
 /** Masking notes run at the scramble's pace, then pause so the test note stands apart. */
 export const MASK_STEP = 0.2;
@@ -165,11 +165,18 @@ export interface ChromaStep {
 }
 
 /**
- * Everything one play of a chroma pair sounds: optionally a masker, the first note,
- * another masker, then the second note. `noteSeconds` is how long a test note
- * sounds including its release, which depends on the instrument.
+ * Everything one play of a chroma pair sounds: the first note, a masker, then the second note.
+ * A replay starts with a masker too, so the second note of the last play can't be compared
+ * with the first. `noteSeconds` is how long a test note sounds including its release,
+ * which depends on the instrument.
  */
-export function chromaTimeline(question: Question, settings: Settings, rng: Rng, noteSeconds: number): ChromaStep[] {
+export function chromaTimeline(
+  question: Question,
+  settings: Settings,
+  rng: Rng,
+  noteSeconds: number,
+  replay = false,
+): ChromaStep[] {
   const count = CHROMA_MASKER_NOTES[settings.chromaMasker];
   const second = question.comparisonMidi ?? question.targetMidi;
   const steps: ChromaStep[] = [];
@@ -182,7 +189,7 @@ export function chromaTimeline(question: Question, settings: Settings, rng: Rng,
     }
     at += MASK_PAUSE - MASK_STEP + MASK_NOTE;
   };
-  mask(question.targetPitchClass);
+  if (replay) mask(question.targetPitchClass);
   steps.push({ midi: question.targetMidi, at, duration: settings.noteDuration, cue: 'first' });
   at += noteSeconds + (count === 0 ? PAIR_GAP : MASK_PAUSE);
   mask(midiToPitchClass(second));

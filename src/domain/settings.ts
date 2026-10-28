@@ -11,7 +11,7 @@ export const TONE_WAVEFORMS: readonly ToneWaveform[] = ['soft', 'sine', 'triangl
 export type ReplayOctave = 'same' | 'random' | 'sweep';
 /** Identify chroma: how far a "different" note is from the first note. */
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
-/** Identify chroma: random notes before and between the pair, so the first can't be held in memory. */
+/** Identify chroma: random notes between the pair (and before it on a replay), so the first can't be held in memory. */
 export type ChromaMasker = 'off' | 'short' | 'long';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
 export type ReferenceOctaves = 1 | 2 | 3;
