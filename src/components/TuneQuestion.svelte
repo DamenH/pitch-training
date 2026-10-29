@@ -10,7 +10,7 @@
   import { midiToFrequency, noteName, pitchClassName } from '../domain/music';
   import { stopAll, type Tone } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playTuneComparison, preloadTuneRange, startTuneTone, strikeTuneNote } from '../lib/playback';
+  import { playTuneComparison, preloadTuneRange, startTuneTone, strikeTuneNote, strikeTuneOctave } from '../lib/playback';
   import { playScramble } from '../lib/scramble.svelte';
   import { describeDeviation, signedCents } from '../lib/format';
   import { haptic } from '../lib/native';
@@ -75,6 +75,13 @@
     if (phase !== 'tuning') return;
     clearTimeout(strikeTimer);
     void strikeTuneNote(midi);
+  }
+
+  /** Hear the current pitch an octave down or up, to carry the anchor into other octaves. */
+  function strikeOctave(direction: -1 | 1) {
+    if (phase !== 'tuning') return;
+    clearTimeout(strikeTimer);
+    strikeTuneOctave(midi + 12 * direction);
   }
 
   function move(cents: number) {
@@ -154,6 +161,11 @@
       strike();
       return;
     }
+    if ((e.key === '[' || e.key === ']') && phase === 'tuning') {
+      e.preventDefault();
+      strikeOctave(e.key === '[' ? -1 : 1);
+      return;
+    }
     const step = e.shiftKey ? BIG_NUDGE : NUDGE;
     const delta = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: 100, PageDown: -100 }[e.key];
     if (delta !== undefined && phase === 'tuning') {
@@ -208,9 +220,31 @@
 <svelte:window {onkeydown} />
 
 <section class="stack tune" aria-label={`Tune to ${anchorName}`}>
-  <p class="target">
-    Tune to <strong>{anchorName}</strong>{#if !round.exact} <span class="muted">any octave</span>{/if}
-  </p>
+  <div class="target-row">
+    <button
+      type="button"
+      class="btn small plain octave"
+      disabled={phase !== 'tuning'}
+      onclick={() => strikeOctave(-1)}
+      aria-label="Play an octave below"
+      title="Play an octave below ([)"
+    >
+      <Icon name="play" size={14} /> −1
+    </button>
+    <p class="target">
+      Tune to <strong>{anchorName}</strong>{#if !round.exact}{' '}<span class="muted">any octave</span>{/if}
+    </p>
+    <button
+      type="button"
+      class="btn small plain octave"
+      disabled={phase !== 'tuning'}
+      onclick={() => strikeOctave(1)}
+      aria-label="Play an octave above"
+      title="Play an octave above (])"
+    >
+      <Icon name="play" size={14} /> +1
+    </button>
+  </div>
 
   {#if phase === 'ready'}
     <div class="start">
@@ -297,6 +331,15 @@
 </section>
 
 <style>
+  .target-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .octave {
+    font-variant-numeric: tabular-nums;
+  }
   .target {
     margin: 0;
     text-align: center;

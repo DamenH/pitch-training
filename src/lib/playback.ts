@@ -70,6 +70,16 @@ export function strikeTuneNote(midi: number): Promise<void> {
   return playTimeline([{ frequency: midiToFrequency(midi), at: 0, duration: STRIKE_NOTE, volume: s.volume }], 'piano');
 }
 
+/**
+ * Anchor tune: the current pitch an octave away, as a single note. A sustained tone keeps
+ * sounding underneath, so the two can be heard together; the piano just strikes.
+ */
+export function strikeTuneOctave(midi: number): void {
+  const s = settings.value;
+  if (s.tuneWaveform === 'piano') void strikeTuneNote(midi);
+  else startPolyNote(midiToFrequency(midi), { duration: STRIKE_NOTE, volume: s.volume, waveform: s.tuneWaveform });
+}
+
 /** Fetch the piano samples a tune round can reach, if the piano is its sound. */
 export function preloadTuneRange(low: number, high: number): void {
   if (settings.value.tuneWaveform === 'piano') preloadPianoRange(low, high);
