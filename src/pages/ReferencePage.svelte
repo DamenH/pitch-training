@@ -16,7 +16,7 @@
   import { OCTAVE_MAX, OCTAVE_MIN, visibleOctaves } from '../domain/settings';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
-  import { playMidiPoly, preloadNotes } from '../lib/playback';
+  import { preloadNotes, startMidiHeld } from '../lib/playback';
   import { mic } from '../lib/mic.svelte';
   import { pianoPitchClassFromKey, shouldIgnoreShortcut } from '../lib/keys';
   import Piano from '../components/Piano.svelte';
@@ -31,6 +31,8 @@
   let held = $state<number[]>([]);
   let scoreNotes = $state<number[]>([]);
   const keyboardNotes = new Map<string, number>();
+  /** Release functions for keys being held: a held key sustains until let go. */
+  const releases = new Map<number, () => void>();
   // Extra octaves around the chosen one; narrow screens hide them (see the styles below).
   const shown = $derived(visibleOctaves(octave, s.referenceOctaves));
   const sounding = $derived([...held, ...scoreNotes]);
@@ -54,16 +56,21 @@
     const midi = noteToMidi(pc, o);
     selectedMidi = midi;
     if (held.includes(midi)) return;
-    playMidiPoly(midi);
+    releases.get(midi)?.();
+    releases.set(midi, startMidiHeld(midi));
     held = [...held, midi];
   }
 
   function releaseMidi(midi: number) {
-    // Releasing the key changes its highlight; the reference tone finishes naturally.
+    // Letting go ends the note, though never before the note length in Settings.
+    releases.get(midi)?.();
+    releases.delete(midi);
     held = held.filter((note) => note !== midi);
   }
 
   function releaseKeys() {
+    for (const release of releases.values()) release();
+    releases.clear();
     keyboardNotes.clear();
     held = [];
   }

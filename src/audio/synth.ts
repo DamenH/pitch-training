@@ -31,6 +31,8 @@ const MAX_GAIN = 0.5;
 const PIANO_MAX_GAIN = 0.8;
 /** Glide time constant for a sustained tone changing pitch: smooth, but quick enough to feel direct. */
 const GLIDE = 0.012;
+/** Fade time constant for muting a sustained tone: no click, but no audible tail either. */
+const MUTE_FADE = 0.015;
 
 interface Voice {
   sources: AudioScheduledSourceNode[];
@@ -317,6 +319,8 @@ export function playNote(frequency: number, opts: PlayOptions): Promise<void> {
 export interface Tone {
   /** Glide to a new frequency. */
   retune(frequency: number): void;
+  /** Fade the tone out or back in without stopping it. */
+  mute(muted: boolean): void;
   /** Fade out and release the tone. */
   stop(): void;
 }
@@ -330,6 +334,7 @@ export function startTone(frequency: number, opts: Omit<PlayOptions, 'duration'>
   const myGeneration = generation;
   const waveform: Waveform = opts.waveform === 'piano' ? 'soft' : opts.waveform;
   let current = frequency;
+  let muted = false;
   let stopped = false;
   let voice: Voice | undefined;
   let built: OscillatorVoice | undefined;
@@ -338,7 +343,7 @@ export function startTone(frequency: number, opts: Omit<PlayOptions, 'duration'>
       if (stopped || myGeneration !== generation) return;
       const start = ctx.currentTime + 0.01;
       built = buildOscillators(ctx, current, start, waveform, opts.volume);
-      built.gain.gain.linearRampToValueAtTime(built.peak, start + built.attack);
+      if (!muted) built.gain.gain.linearRampToValueAtTime(built.peak, start + built.attack);
       for (const osc of built.oscillators) osc.start(start);
       voice = track(built.oscillators, built.gain, Infinity);
       voices.push(voice);
@@ -348,6 +353,14 @@ export function startTone(frequency: number, opts: Omit<PlayOptions, 'duration'>
     retune(f) {
       current = f;
       if (built && !stopped) built.retune(f, built.gain.context.currentTime);
+    },
+    mute(m) {
+      muted = m;
+      if (!built || stopped) return;
+      const now = built.gain.context.currentTime;
+      built.gain.gain.cancelScheduledValues(now);
+      built.gain.gain.setValueAtTime(built.gain.gain.value, now);
+      built.gain.gain.setTargetAtTime(m ? 0 : built.peak, now, MUTE_FADE);
     },
     stop() {
       if (stopped) return;
@@ -398,6 +411,66 @@ export function startPolyNote(frequency: number, opts: PlayOptions): () => void 
       voice.gain.gain.setTargetAtTime(0, now, 0.025);
     } catch { /* Already ended. */ }
     stopSources(voice, now + 0.12);
+  };
+}
+
+/**
+ * A key held down: sounds for at least `opts.duration`, and on for as long as it is held.
+ * Synth sounds sustain indefinitely; the piano until its recording runs out.
+ * Returns the release. Doesn't interrupt other keys.
+ */
+export function startHeldNote(frequency: number, opts: PlayOptions): () => void {
+  const myGeneration = generation;
+  const ctxPromise = resumeAudio();
+  let released = false;
+  let release: (() => void) | undefined;
+  void (async () => {
+    const note = opts.waveform === 'piano' ? await loadPianoNote(frequencyToMidi(frequency)).catch(() => null) : null;
+    const ctx = await ctxPromise;
+    if (myGeneration !== generation) return;
+    const start = ctx.currentTime + 0.005;
+    // Let go before the sound was ready: just play an ordinary note.
+    if (released) {
+      addPolyVoice(note ? schedulePiano(ctx, frequency, note, start, opts) : scheduleOscillator(ctx, frequency, start, opts));
+      return;
+    }
+    if (note) {
+      // Held to the end of the recording; letting go sooner damps it early.
+      const voice = schedulePiano(ctx, frequency, note, start, { ...opts, duration: Infinity });
+      addPolyVoice(voice);
+      const earliest = start + pianoHold(opts.duration);
+      release = () => {
+        const at = Math.max(ctx.currentTime, earliest);
+        if (at >= voice.end - PIANO_RELEASE) return;
+        try {
+          voice.gain.gain.cancelScheduledValues(at);
+          voice.gain.gain.setTargetAtTime(0, at, PIANO_RELEASE / 4);
+        } catch { /* Already ended. */ }
+        stopSources(voice, at + PIANO_RELEASE + 0.02);
+      };
+      return;
+    }
+    const v = buildOscillators(ctx, frequency, start, opts.waveform, opts.volume);
+    v.gain.gain.linearRampToValueAtTime(v.peak, start + v.attack);
+    for (const osc of v.oscillators) osc.start(start);
+    const voice = track(v.oscillators, v.gain, Infinity);
+    addPolyVoice(voice);
+    // The attack is always over by then, so the release starts from the full level.
+    const earliest = start + Math.max(v.attack, opts.duration);
+    release = () => {
+      const at = Math.max(ctx.currentTime, earliest);
+      try {
+        v.gain.gain.cancelScheduledValues(at);
+        v.gain.gain.setValueAtTime(v.peak, at);
+        v.gain.gain.linearRampToValueAtTime(0, at + v.release);
+      } catch { /* Already ended. */ }
+      stopSources(voice, at + v.release + 0.02);
+    };
+  })().catch((error: unknown) => console.warn('Unable to play note.', error));
+  return () => {
+    if (released) return;
+    released = true;
+    release?.();
   };
 }
 

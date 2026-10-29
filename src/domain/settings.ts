@@ -4,6 +4,13 @@ export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
 export type Waveform = 'piano' | 'soft' | 'sine' | 'triangle' | 'warm';
 export const WAVEFORMS: readonly Waveform[] = ['piano', 'soft', 'sine', 'triangle', 'warm'];
+export const WAVEFORM_LABELS: Record<Waveform, string> = {
+  piano: 'Grand piano',
+  soft: 'Soft synth',
+  sine: 'Sine',
+  triangle: 'Triangle',
+  warm: 'Warm',
+};
 /** Anchor tune: any octave of the anchor counts, or only the chosen one. */
 export type TuneLevel = 'any' | 'exact';
 /** Identify notes: whether replays repeat the note's octave, jump to another, or sweep up and down the range. */
@@ -46,8 +53,6 @@ export interface Settings {
   /** Anchor: the octave rounds centre on, and the target at the exact level. */
   anchorOctave: number;
   tuneLevel: TuneLevel;
-  /** Anchor tune: the sound you tune. Synth sounds sustain; the piano is struck. */
-  tuneWaveform: Waveform;
   /** Anchor tune with the piano: strike by itself when you stop turning. */
   tuneAutoStrike: boolean;
   /** Anchor tune: scramble before each round, so the last reveal can't be used as a reference. */
@@ -112,7 +117,6 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   anchorPitchClass: 0,
   anchorOctave: 4,
   tuneLevel: 'any',
-  tuneWaveform: 'soft',
   tuneAutoStrike: false,
   tuneMasker: true,
   tuneToleranceCents: 50,
@@ -192,7 +196,6 @@ export function sanitizeSettings(input: unknown): Settings {
         : d.anchorPitchClass,
     anchorOctave: Math.round(clamp(num(raw.anchorOctave, d.anchorOctave), ANCHOR_OCTAVE_MIN, ANCHOR_OCTAVE_MAX)),
     tuneLevel: oneOf(raw.tuneLevel, ['any', 'exact'] as const, d.tuneLevel),
-    tuneWaveform: oneOf(raw.tuneWaveform, WAVEFORMS, d.tuneWaveform),
     tuneAutoStrike: typeof raw.tuneAutoStrike === 'boolean' ? raw.tuneAutoStrike : d.tuneAutoStrike,
     tuneMasker: typeof raw.tuneMasker === 'boolean' ? raw.tuneMasker : d.tuneMasker,
     tuneToleranceCents: Math.round(

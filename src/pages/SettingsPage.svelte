@@ -21,6 +21,8 @@
     VOCAL_MIDI_MAX,
     VOCAL_MIDI_MIN,
     VOCAL_PRESETS,
+    WAVEFORM_LABELS,
+    WAVEFORMS,
     type ScoringPolicy,
     type ChromaContrast,
     type ChromaMasker,
@@ -133,11 +135,9 @@
       <label class="field grow">
         <span>Instrument</span>
         <select value={s.waveform} onchange={(e) => settings.update({ waveform: e.currentTarget.value as Waveform })}>
-          <option value="piano">Grand piano</option>
-          <option value="soft">Soft synth</option>
-          <option value="sine">Sine</option>
-          <option value="triangle">Triangle</option>
-          <option value="warm">Warm</option>
+          {#each WAVEFORMS as value (value)}
+            <option {value}>{WAVEFORM_LABELS[value]}</option>
+          {/each}
         </select>
       </label>
       <button type="button" class="btn" {...onPress(() => playMidi(69))}><Icon name="play" size={16} /> Test</button>

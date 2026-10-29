@@ -23,15 +23,13 @@
     ANCHOR_OCTAVE_MIN,
     TUNE_TOLERANCE_MAX,
     TUNE_TOLERANCE_MIN,
+    WAVEFORM_LABELS,
     type TuneLevel,
-    type Waveform,
   } from '../domain/settings';
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { history } from '../lib/history.svelte';
   import { anchorModes } from '../lib/anchorMode.svelte';
-  import { previewToneSound } from '../lib/playback';
-  import { onPress } from '../lib/native';
   import TuneQuestion from '../components/TuneQuestion.svelte';
   import Icon from '../components/Icon.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -81,7 +79,6 @@
     stopAll();
   });
 
-  const SOUNDS: [Waveform, string][] = [['soft', 'Soft'], ['sine', 'Sine'], ['triangle', 'Triangle'], ['warm', 'Warm'], ['piano', 'Piano']];
   const LEVELS: [TuneLevel, string][] = [['any', 'Any octave'], ['exact', 'Exact octave']];
   const OCTAVES = Array.from({ length: ANCHOR_OCTAVE_MAX - ANCHOR_OCTAVE_MIN + 1 }, (_, i) => ANCHOR_OCTAVE_MIN + i);
   const anchorName = $derived(pitchClassName(s.anchorPitchClass, s.spelling));
@@ -159,31 +156,12 @@
     Changes apply from the next round.
   </p>
 
-  <div class="sound">
-    <fieldset class="field">
-      <legend>Tuning sound</legend>
-      <div class="segmented">
-        {#each SOUNDS as [value, label] (value)}
-          <label class:checked={s.tuneWaveform === value}>
-            <input type="radio" name="tune-sound" {value} checked={s.tuneWaveform === value}
-              onchange={() => settings.update({ tuneWaveform: value })} />
-            {label}
-          </label>
-        {/each}
-      </div>
-    </fieldset>
-    <button
-      type="button"
-      class="btn small"
-      aria-label="Preview sound"
-      title="Preview on a random note"
-      {...onPress(() => previewToneSound(s.tuneWaveform, s.anchorPitchClass))}
-    >
-      <Icon name="play" size={16} />
-    </button>
-  </div>
+  <p class="muted small">
+    Sound: {WAVEFORM_LABELS[s.waveform]}, the instrument set in <a href="#/settings">Settings</a>.
+    {s.waveform === 'piano' ? 'The piano is struck rather than held.' : ''}
+  </p>
 
-  {#if s.tuneWaveform === 'piano'}
+  {#if s.waveform === 'piano'}
     <label class="toggle">
       <span class="toggle-copy">
         <strong>Strike when you stop turning</strong>
@@ -283,14 +261,6 @@
     inset: 0;
     opacity: 0;
     margin: 0;
-  }
-  .sound {
-    display: flex;
-    align-items: flex-end;
-    gap: var(--space-2);
-  }
-  .sound .field {
-    flex: 1;
   }
   .toggle {
     display: flex;

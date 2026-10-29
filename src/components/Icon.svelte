@@ -17,7 +17,9 @@
     | 'upload'
     | 'trash'
     | 'anchor'
-    | 'sliders';
+    | 'sliders'
+    | 'volume'
+    | 'volume-off';
 </script>
 
 <script lang="ts">
@@ -80,6 +82,10 @@
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
   {:else if name === 'anchor'}
     <circle cx="12" cy="5" r="2" /><path d="M12 7v14M8 11h8M5 14a7 7 0 0 0 14 0" />
+  {:else if name === 'volume'}
+    <path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+  {:else if name === 'volume-off'}
+    <path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M17 9l5 6M22 9l-5 6" />
   {:else if name === 'sliders'}
     <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
   {/if}

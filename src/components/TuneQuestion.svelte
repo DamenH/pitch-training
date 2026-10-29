@@ -46,7 +46,7 @@
   const anchorName = $derived(round.exact ? noteName(round.target, s.spelling) : pitchClassName(round.anchor, s.spelling));
   /** The piano can't sustain, so it is struck: by the Strike button, or by itself after turning. */
   // svelte-ignore state_referenced_locally
-  const struck = s.tuneWaveform === 'piano';
+  const struck = s.waveform === 'piano';
 
   let phase = $state<'ready' | 'masking' | 'tuning' | 'revealed'>('ready');
   // svelte-ignore state_referenced_locally
@@ -57,6 +57,11 @@
   let destroyed = false;
   let atEdge = false;
   let strikeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A sustained tone silenced by the Mute button. */
+  let muted = $state(false);
+  /** A sustained tone held quiet while an octave note plays, so the two aren't heard together. */
+  let ducked = false;
+  let duckTimer: ReturnType<typeof setTimeout> | undefined;
 
   async function begin() {
     if (phase !== 'ready') return;
@@ -67,7 +72,10 @@
     }
     phase = 'tuning';
     if (struck) strike();
-    else tone = startTuneTone(midi);
+    else {
+      tone = startTuneTone(midi);
+      tone.mute(muted);
+    }
     startedAt = Date.now();
   }
 
@@ -81,7 +89,20 @@
   function strikeOctave(direction: -1 | 1) {
     if (phase !== 'tuning') return;
     clearTimeout(strikeTimer);
-    strikeTuneOctave(midi + 12 * direction);
+    clearTimeout(duckTimer);
+    ducked = true;
+    tone?.mute(true);
+    const ms = strikeTuneOctave(midi + 12 * direction);
+    duckTimer = setTimeout(() => {
+      ducked = false;
+      tone?.mute(muted);
+    }, ms);
+  }
+
+  function toggleMute() {
+    if (phase !== 'tuning' || struck) return;
+    muted = !muted;
+    if (!ducked) tone?.mute(muted);
   }
 
   function move(cents: number) {
@@ -101,6 +122,7 @@
   function lock() {
     if (phase !== 'tuning') return;
     clearTimeout(strikeTimer);
+    clearTimeout(duckTimer);
     tone?.stop();
     tone = null;
     result = evaluateTune(round, midi, s.tuneToleranceCents);
@@ -161,6 +183,11 @@
       strike();
       return;
     }
+    if ((e.key === 'm' || e.key === 'M') && !struck && phase === 'tuning') {
+      e.preventDefault();
+      toggleMute();
+      return;
+    }
     if ((e.key === '[' || e.key === ']') && phase === 'tuning') {
       e.preventDefault();
       strikeOctave(e.key === '[' ? -1 : 1);
@@ -182,6 +209,7 @@
   onDestroy(() => {
     destroyed = true;
     clearTimeout(strikeTimer);
+    clearTimeout(duckTimer);
     tone?.stop();
     stopAll();
   });
@@ -300,13 +328,24 @@
     >
       <span class="hint">{phase === 'masking' ? 'Clearing your ear…' : 'Drag up or down'}</span>
     </div>
-    <div class="nudges" class:struck>
+    <div class="nudges middle">
       <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => move(-NUDGE)} title="Lower (↓)">
         Lower {NUDGE}¢
       </button>
       {#if struck}
         <button type="button" class="btn small strike" disabled={phase !== 'tuning'} onclick={strike} title="Strike (Space)">
           <Icon name="play" size={16} /> Strike
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="btn small strike"
+          disabled={phase !== 'tuning'}
+          aria-pressed={muted}
+          onclick={toggleMute}
+          title={muted ? 'Unmute (M)' : 'Mute (M)'}
+        >
+          <Icon name={muted ? 'volume-off' : 'volume'} size={16} /> {muted ? 'Unmute' : 'Mute'}
         </button>
       {/if}
       <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => move(NUDGE)} title="Higher (↑)">
@@ -449,7 +488,7 @@
     grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
   }
-  .nudges.struck {
+  .nudges.middle {
     grid-template-columns: 1fr 1.4fr 1fr;
   }
   .strike {

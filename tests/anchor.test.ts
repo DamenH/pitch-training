@@ -170,7 +170,6 @@ describe('anchor settings', () => {
       anchorPitchClass: 14,
       anchorOctave: 9,
       tuneLevel: 'hard',
-      tuneWaveform: 'organ',
       tuneAutoStrike: 1,
       tuneToleranceCents: 500,
       tuneMasker: 'yes',
@@ -178,9 +177,7 @@ describe('anchor settings', () => {
     expect(s.anchorPitchClass).toBe(2);
     expect(s.anchorOctave).toBe(6);
     expect(s.tuneLevel).toBe('any');
-    expect(s.tuneWaveform).toBe('soft');
     expect(s.tuneAutoStrike).toBe(false);
-    expect(sanitizeSettings({ tuneWaveform: 'piano' }).tuneWaveform).toBe('piano');
     expect(s.tuneToleranceCents).toBe(100);
     expect(s.tuneMasker).toBe(true);
   });
