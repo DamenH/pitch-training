@@ -248,31 +248,9 @@
 <svelte:window {onkeydown} />
 
 <section class="stack tune" aria-label={`Tune to ${anchorName}`}>
-  <div class="target-row">
-    <button
-      type="button"
-      class="btn small plain octave"
-      disabled={phase !== 'tuning'}
-      onclick={() => strikeOctave(-1)}
-      aria-label="Play an octave below"
-      title="Play an octave below ([)"
-    >
-      <Icon name="play" size={14} /> −1
-    </button>
-    <p class="target">
-      Tune to <strong>{anchorName}</strong>{#if !round.exact}{' '}<span class="muted">any octave</span>{/if}
-    </p>
-    <button
-      type="button"
-      class="btn small plain octave"
-      disabled={phase !== 'tuning'}
-      onclick={() => strikeOctave(1)}
-      aria-label="Play an octave above"
-      title="Play an octave above (])"
-    >
-      <Icon name="play" size={14} /> +1
-    </button>
-  </div>
+  <p class="target">
+    Tune to <strong>{anchorName}</strong>{#if !round.exact}{' '}<span class="muted">any octave</span>{/if}
+  </p>
 
   {#if phase === 'ready'}
     <div class="start">
@@ -352,6 +330,15 @@
         Higher {NUDGE}¢
       </button>
     </div>
+    <!-- The current pitch in the octaves either side, to carry the anchor into other registers. -->
+    <div class="nudges">
+      <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => strikeOctave(-1)} title="Play an octave below ([)">
+        <Icon name="play" size={16} /> Octave below
+      </button>
+      <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => strikeOctave(1)} title="Play an octave above (])">
+        <Icon name="play" size={16} /> Octave above
+      </button>
+    </div>
   {/if}
 
   {#if phase !== 'ready'}
@@ -370,15 +357,6 @@
 </section>
 
 <style>
-  .target-row {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .octave {
-    font-variant-numeric: tabular-nums;
-  }
   .target {
     margin: 0;
     text-align: center;
