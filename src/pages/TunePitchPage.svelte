@@ -9,14 +9,14 @@
     totalMiss: number;
   }
 
-  // Like the other tabs, Tune keeps its round and tally while you visit other screens.
+  // Like the other tabs, Tune pitch keeps its round and tally while you visit other screens.
   let session: Session | undefined;
 </script>
 
 <script lang="ts">
   import { flushSync, onDestroy, untrack } from 'svelte';
   import { createTuneRound, isCold, type TuneResult } from '../domain/anchor';
-  import { entryFromTune } from '../domain/history';
+  import { entryFromTune, isTempoExercise, lastAnswerAt } from '../domain/history';
   import { ALL_PITCH_CLASSES, noteToMidi, pitchClassName, spokenPitchClassName } from '../domain/music';
   import {
     ANCHOR_OCTAVE_MAX,
@@ -29,7 +29,6 @@
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { history } from '../lib/history.svelte';
-  import { tuneModes } from '../lib/tuneMode.svelte';
   import TuneQuestion from '../components/TuneQuestion.svelte';
   import Icon from '../components/Icon.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -37,8 +36,9 @@
   const s = $derived(settings.value);
 
   function makeRound(): TuneRound {
-    const last = history.entries.at(-1);
-    return createTuneRound(settings.value, Math.random, isCold(last ? Date.parse(last.date) : undefined));
+    // Tempo answers name no note, so they don't warm up the pitch you remember.
+    const last = lastAnswerAt(history.entries, (e) => !isTempoExercise(e.exercise));
+    return createTuneRound(settings.value, Math.random, isCold(last));
   }
 
   // An answered round is never reopened, so it can't be scored twice.
@@ -95,11 +95,9 @@
     </button>
   </p>
 
-  {#if tuneModes.value === 'pitch'}
-    {#key round.id}
-      <TuneQuestion {round} {autostart} {onresult} onnext={next} />
-    {/key}
-  {/if}
+  {#key round.id}
+    <TuneQuestion {round} {autostart} {onresult} onnext={next} />
+  {/key}
 </div>
 
 <Sheet bind:open={optionsOpen} label="Tune options">

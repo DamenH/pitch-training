@@ -16,6 +16,7 @@
   import { haptic } from '../lib/native';
   import { shouldIgnoreShortcut } from '../lib/keys';
   import Icon from './Icon.svelte';
+  import TuneWheel from './TuneWheel.svelte';
 
   let {
     round,
@@ -34,8 +35,6 @@
   const CENTS_PER_PX = 2.5;
   const NUDGE = 5;
   const BIG_NUDGE = 50;
-  /** Ridge spacing on the wheel, in px. */
-  const RIDGE = 14;
   /** The reveal meter spans ± this many cents. */
   const METER = 100;
   /** Auto-strike waits this long after the last turn, so a drag isn't a run of notes. */
@@ -136,36 +135,6 @@
     if (result) void playTuneComparison(result.answerMidi, result.referenceMidi);
   }
 
-  // Dragging: relative only, so where your finger is says nothing about the pitch.
-  let dragY: number | null = null;
-  function onpointerdown(e: PointerEvent) {
-    if (phase !== 'tuning') return;
-    dragY = e.clientY;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
-  function onpointermove(e: PointerEvent) {
-    if (dragY === null) return;
-    move((dragY - e.clientY) * CENTS_PER_PX);
-    dragY = e.clientY;
-  }
-  function onpointerup() {
-    dragY = null;
-  }
-
-  let wheel: HTMLElement | undefined = $state();
-  $effect(() => {
-    if (!wheel) return;
-    const el = wheel;
-    // Not passive, so scrolling the wheel turns it instead of the page.
-    const onwheel = (e: WheelEvent) => {
-      if (phase !== 'tuning') return;
-      e.preventDefault();
-      move(-e.deltaY * (e.deltaMode === 1 ? 10 : 0.25));
-    };
-    el.addEventListener('wheel', onwheel, { passive: false });
-    return () => el.removeEventListener('wheel', onwheel);
-  });
-
   function onkeydown(e: KeyboardEvent) {
     // Keys inside the options sheet belong to its controls.
     if (shouldIgnoreShortcut(e) || (e.target instanceof Element && e.target.closest('dialog'))) return;
@@ -214,8 +183,6 @@
     stopAll();
   });
 
-  /** Ridges scroll with the pitch, like turning a knob. */
-  const turn = $derived((((-midi * 100) / CENTS_PER_PX) % RIDGE + RIDGE) % RIDGE);
   /** Position within this round's random range: says nothing about where the anchor is. */
   const position = $derived(Math.round(((midi - round.low) / (round.high - round.low)) * 100));
 
@@ -287,25 +254,15 @@
       <p class="muted small">Plays where you left the tone, then {anchorName}.</p>
     </div>
   {:else}
-    <div
-      class="wheel"
-      class:idle={phase !== 'tuning'}
-      bind:this={wheel}
-      role="slider"
-      tabindex="0"
-      aria-label="Tuning wheel. Drag, scroll or use the arrow keys to raise or lower the tone."
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={position}
-      aria-disabled={phase !== 'tuning'}
-      style:--turn={`${turn}px`}
-      {onpointerdown}
-      {onpointermove}
-      {onpointerup}
-      onpointercancel={onpointerup}
-    >
-      <span class="hint">{phase === 'masking' ? 'Clearing your ear…' : 'Drag up or down'}</span>
-    </div>
+    <!-- Relative only, so where your finger is says nothing about the pitch. -->
+    <TuneWheel
+      enabled={phase === 'tuning'}
+      travel={(midi * 100) / CENTS_PER_PX}
+      {position}
+      label="Tuning wheel. Drag, scroll or use the arrow keys to raise or lower the tone."
+      hint={phase === 'masking' ? 'Clearing your ear…' : 'Drag up or down'}
+      onturn={(px) => move(px * CENTS_PER_PX)}
+    />
     <div class="nudges middle">
       <button type="button" class="btn small" disabled={phase !== 'tuning'} onclick={() => move(-NUDGE)} title="Lower (↓)">
         Lower {NUDGE}¢
@@ -415,52 +372,6 @@
     outline-offset: 3px;
   }
 
-  /* A knob seen side-on: ridges scroll past a fixed centre line, darker towards the edges. */
-  .wheel {
-    position: relative;
-    display: grid;
-    place-items: center;
-    min-height: 240px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background:
-      linear-gradient(var(--surface), transparent 30%, transparent 70%, var(--surface)),
-      repeating-linear-gradient(180deg, var(--border) 0 3px, transparent 3px 14px) 0 var(--turn) / 100% 14px,
-      var(--surface-2);
-    cursor: ns-resize;
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-  }
-  .wheel::before {
-    content: '';
-    position: absolute;
-    left: 12%;
-    right: 12%;
-    top: 50%;
-    height: 2px;
-    border-radius: 1px;
-    background: var(--anchor);
-    opacity: 0.7;
-  }
-  .wheel.idle {
-    cursor: default;
-    opacity: 0.6;
-  }
-  .wheel:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 3px;
-  }
-  .hint {
-    position: relative;
-    top: 28px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    pointer-events: none;
-  }
   .nudges {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -566,10 +477,6 @@
     .tune {
       flex: 1;
     }
-    .wheel {
-      flex: 1;
-      max-height: 420px;
-    }
     .action-bar {
       position: fixed;
       left: 50%;
@@ -582,12 +489,6 @@
     }
     .tune:has(.action-bar) {
       padding-bottom: calc(var(--tap) + var(--space-4));
-    }
-  }
-
-  @media (orientation: landscape) and (max-height: 500px) {
-    .wheel {
-      min-height: 150px;
     }
   }
 </style>

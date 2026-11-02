@@ -20,6 +20,8 @@ export type ReplayOctave = 'same' | 'random' | 'sweep';
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
 /** Identify chroma: random notes between the pair (and before it on a replay), so the first can't be held in memory. */
 export type ChromaMasker = 'off' | 'short' | 'long';
+/** Tune tempo: tune to your anchor tempo, or to a target shown as Settings → Tempo says. */
+export type TempoTuneLevel = 'anchor' | 'shown';
 /** Tempo exercises: how a target tempo is written (a term counts anywhere in its band). */
 export type TempoTargetStyle = 'number' | 'mark' | 'term';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
@@ -68,6 +70,9 @@ export interface Settings {
   /** Tempo exercises: ± % of the target that counts as correct. */
   tempoTolerancePct: number;
   tempoTargetStyle: TempoTargetStyle;
+  /** Tune tempo: the one tempo the anchor level trains (BPM). */
+  tempoAnchorBpm: number;
+  tempoTuneLevel: TempoTuneLevel;
 }
 
 export const OCTAVE_MIN = 1;
@@ -136,6 +141,8 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   tempoMax: 160,
   tempoTolerancePct: 5,
   tempoTargetStyle: 'mark',
+  tempoAnchorBpm: 120,
+  tempoTuneLevel: 'anchor',
 });
 
 export function defaultSettings(): Settings {
@@ -224,6 +231,8 @@ export function sanitizeSettings(input: unknown): Settings {
       clamp(num(raw.tempoTolerancePct, d.tempoTolerancePct), TEMPO_TOLERANCE_MIN, TEMPO_TOLERANCE_MAX),
     ),
     tempoTargetStyle: oneOf(raw.tempoTargetStyle, ['number', 'mark', 'term'] as const, d.tempoTargetStyle),
+    tempoAnchorBpm: Math.round(clamp(num(raw.tempoAnchorBpm, d.tempoAnchorBpm), BPM_MIN, BPM_MAX)),
+    tempoTuneLevel: oneOf(raw.tempoTuneLevel, ['anchor', 'shown'] as const, d.tempoTuneLevel),
   };
 }
 

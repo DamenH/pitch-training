@@ -8,7 +8,9 @@
   import ExercisePage from './pages/ExercisePage.svelte';
   import SettingsPage from './pages/SettingsPage.svelte';
   import HistoryPage from './pages/HistoryPage.svelte';
-  import TunePage from './pages/TunePage.svelte';
+  import TunePitchPage from './pages/TunePitchPage.svelte';
+  import TuneTempoPage from './pages/TuneTempoPage.svelte';
+  import { tuneModes } from './lib/tuneMode.svelte';
   import TapPage from './pages/TapPage.svelte';
   import { testModes } from './lib/testMode.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
@@ -172,7 +174,7 @@
     {:else if router.current === 'identify'}
       {#key identifyKind}<ExercisePage kind={identifyKind} />{/key}
     {:else if router.current === 'tune'}
-      <TunePage />
+      {#if tuneModes.value === 'pitch'}<TunePitchPage />{:else}<TuneTempoPage />{/if}
     {:else if router.current === 'sing-practice'}
       <ExercisePage kind="sing-practice" />
     {:else if router.current === 'test'}

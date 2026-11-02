@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { describeDeviation, signedCents } from '../src/lib/format';
+import { describeDeviation, signedCents, signedPercent } from '../src/lib/format';
 
 describe('deviation formatting', () => {
   it('formats signed cents', () => {
     expect(signedCents(12.4)).toBe('+12¢');
     expect(signedCents(-30)).toBe('−30¢');
     expect(signedCents(0.2)).toBe('0¢');
+  });
+
+  it('formats signed percentages', () => {
+    expect(signedPercent(5.24)).toBe('+5.2%');
+    expect(signedPercent(-34.16)).toBe('−34.2%');
+    expect(signedPercent(-0.04)).toBe('0.0%');
   });
 
   it('describes small and large deviations', () => {

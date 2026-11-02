@@ -5,7 +5,7 @@ import { resolve, extname } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { verifyLibrary, verifyStorageFallback } from './verify-library.mjs';
 import { verifyLayout, verifyScramble, verifySinging } from './verify-singing.mjs';
-import { verifyMetronome, verifyRoutes, verifyTap } from './verify-tempo.mjs';
+import { verifyMetronome, verifyRoutes, verifyTap, verifyTune } from './verify-tempo.mjs';
 
 // Exercise real service workers under subpaths, as on shared hosting / GitHub Pages.
 let update = false;
@@ -123,6 +123,7 @@ try {
     await verifyRoutes(page, url);
     await verifyMetronome(page, url);
     await verifyTap(page, url);
+    await verifyTune(page, url);
 
     await context.setOffline(false);
     update = true;

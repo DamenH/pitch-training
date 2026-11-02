@@ -172,6 +172,12 @@ export function entryFromTempo(
   };
 }
 
+/** When the last answer matching `which` was given (ms), for deciding whether a round starts cold. */
+export function lastAnswerAt(entries: readonly HistoryEntry[], which: (e: HistoryEntry) => boolean): number | undefined {
+  for (let i = entries.length - 1; i >= 0; i--) if (which(entries[i]!)) return Date.parse(entries[i]!.date);
+  return undefined;
+}
+
 export interface Tally {
   answered: number;
   correct: number;

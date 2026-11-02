@@ -4,6 +4,12 @@ export function signedCents(cents: number): string {
   return r > 0 ? `+${r}¢` : r < 0 ? `−${-r}¢` : '0¢';
 }
 
+/** "+5.2%" / "−3.0%", to one decimal place. */
+export function signedPercent(pct: number): string {
+  const r = Math.round(pct * 10) / 10;
+  return r > 0 ? `+${r.toFixed(1)}%` : r < 0 ? `−${(-r).toFixed(1)}%` : '0.0%';
+}
+
 /**
  * Phrase a deviation relative to a reference note, e.g. "12¢ sharp of",
  * "in tune with", "≈4 semitones below". The caller appends the note name.

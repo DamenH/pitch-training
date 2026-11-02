@@ -107,3 +107,68 @@ export async function verifyTap(page, url) {
   await page.locator('label:has(input[name="tempo-target-style"][value="mark"])').click();
   console.log('  tap: silent taps scored against the target, hear it, next and history passed');
 }
+
+/** Drag, scroll and arrow keys all turn a wheel; returns once a reveal shows. */
+async function turnAndLock(page, beforeLock = async () => {}) {
+  const wheel = page.getByRole('slider', { name: /wheel/ });
+  await expect(wheel).toHaveAttribute('aria-disabled', 'false', { timeout: 8000 });
+  const box = await wheel.boundingBox();
+  const before = Number(await wheel.getAttribute('aria-valuenow'));
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 40, { steps: 4 });
+  await page.mouse.up();
+  const dragged = Number(await wheel.getAttribute('aria-valuenow'));
+  await page.mouse.wheel(0, 200);
+  const scrolled = Number(await wheel.getAttribute('aria-valuenow'));
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Shift+ArrowUp');
+  const keyed = Number(await wheel.getAttribute('aria-valuenow'));
+  // Each turn moves the value unless it is pinned at an end of the range.
+  assert(dragged !== before || dragged === 100, 'Dragging up turns the wheel');
+  assert(scrolled !== dragged || scrolled === 0, 'Scrolling turns the wheel');
+  assert(keyed !== scrolled || keyed === 100, 'Arrow keys turn the wheel');
+  await beforeLock();
+  await page.getByRole('button', { name: 'Lock in' }).click();
+  await expect(page.locator('.reveal .verdict')).toBeVisible();
+}
+
+export async function verifyTune(page, url) {
+  await page.goto(`${url}#/tune/pitch`);
+  await page.getByRole('button', { name: 'Start round' }).click();
+  await turnAndLock(page);
+  await expect(page.getByRole('button', { name: /Compare again/ })).toBeVisible();
+
+  await page.goto(`${url}#/tune/tempo`);
+  await expect(page.getByRole('heading', { name: 'Tune', exact: true })).toBeVisible();
+  await expect(page.locator('.mode')).toHaveText('Tempo');
+  await expect(page.locator('.tempo-tune .target')).toContainText('your anchor tempo');
+  const clicks = await countClicks(page);
+  await page.getByRole('button', { name: 'Start round' }).click();
+  // The scramble's uneven clicks, then the metronome.
+  await expect(page.getByRole('slider', { name: /wheel/ })).toHaveAttribute('aria-disabled', 'false', { timeout: 8000 });
+  const tuningFrom = await clicks();
+  await page.waitForTimeout(1500);
+  assert((await clicks()) - tuningFrom >= 1, 'The metronome clicks while tuning');
+  // The tempo stays hidden while tuning.
+  await expect(page.locator('.tempo-tune .tempo-mark')).toHaveCount(1);
+  let locked = 0;
+  await turnAndLock(page, async () => {
+    // Let any beat already scheduled sound first.
+    await page.waitForTimeout(150);
+    locked = await clicks();
+  });
+  await expect(page.locator('.reveal .pct')).toHaveText(/^[+−]?\d+\.\d%$|^In range$/);
+  await expect(page.locator('.reveal .detail .tempo-mark')).toHaveCount(2);
+  // Lock in stops the metronome; the comparison plays 4 + 4 beats (and the metronome adds none).
+  await page.waitForTimeout(1000);
+  const settled = await clicks();
+  assert(settled - locked >= 8 && settled - locked <= 9, `Expected the 8 comparison clicks, got ${settled - locked}`);
+  await page.waitForTimeout(800);
+  assert.equal(await clicks(), settled, 'Nothing clicks after the comparison');
+  await page.getByRole('button', { name: /Next round/ }).click();
+  await expect(page.getByRole('slider', { name: /wheel/ })).toBeVisible();
+  await page.goto(`${url}#/history`);
+  await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Tune tempo$/ }) })).toHaveCount(1);
+  console.log('  tune: pitch wheel drag/scroll/keys, tempo rounds with hidden tempo, compare, next and history passed');
+}

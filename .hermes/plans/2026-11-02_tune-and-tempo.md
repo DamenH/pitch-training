@@ -233,6 +233,10 @@ target style (segmented: Number / Mark / Term).
 
 ## Phase 4: Tune → Tempo
 
+**Shipped 2026-11-02.** `TunePage` split into `TunePitchPage` and `TuneTempoPage`; the wheel is
+`TuneWheel` (it reports drag in px and each mode decides what a px is worth). Cold rounds use
+`lastAnswerAt` from History: pitch ignores tempo answers and tempo only counts tempo answers.
+
 **Behaviour** (mirrors Tune → Pitch):
 - **Levels** (Tune options): **Anchor**, which tunes to your anchor tempo (default ♩ = 120, set in
   options), and **Shown**, which tunes to a target drawn like Tap's and written in the chosen
