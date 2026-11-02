@@ -56,6 +56,7 @@
   function answerText(e: HistoryEntry): string {
     if (e.outcome === 'no-detection') return 'no steady note detected';
     if (isTempoExercise(e.exercise)) {
+      if (e.answerTerm !== null) return e.answerTerm;
       if (e.answerBpm === null) return '—';
       return `${Math.round(e.answerBpm)} BPM${e.tempoErrorPct === null ? '' : ` (${describeTempoError(e.tempoErrorPct)})`}`;
     }
@@ -68,7 +69,11 @@
   }
 
   function targetText(e: HistoryEntry): string {
-    if (isTempoExercise(e.exercise)) return e.targetTerm ?? `${e.targetBpm} BPM`;
+    if (isTempoExercise(e.exercise)) {
+      // Identify plays an exact tempo even when the answer is a term; Tap and Tune target the term.
+      if (e.targetTerm === null) return `${e.targetBpm} BPM`;
+      return e.exercise === 'identify-tempo' ? `${e.targetTerm} (${e.targetBpm} BPM)` : e.targetTerm;
+    }
     if (e.targetMidi === null || e.targetPitchClass === null) return '—';
     if (e.exercise === 'identify-chroma') {
       const second = e.comparisonMidi === null ? '?' : noteName(e.comparisonMidi, s.spelling);

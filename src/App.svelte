@@ -12,6 +12,7 @@
   import TuneTempoPage from './pages/TuneTempoPage.svelte';
   import { tuneModes } from './lib/tuneMode.svelte';
   import TapPage from './pages/TapPage.svelte';
+  import IdentifyTempoPage from './pages/IdentifyTempoPage.svelte';
   import { testModes } from './lib/testMode.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
 
@@ -60,7 +61,7 @@
   let main: HTMLElement | undefined = $state();
   let scrolled = $state(false);
   const pushed = $derived(!isTab(router.current));
-  const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyModes.value]);
+  const identifyKind = $derived(identifyModes.value === 'tempo' ? null : IDENTIFY_MODE_KINDS[identifyModes.value]);
   const modes = $derived(modesFor(router.current));
   /** Exercise screens fill the height on phones, so their answer controls sit above the tab bar. */
   const fills = $derived(router.current === 'identify' || router.current === 'tune' || (router.current === 'test' && testModes.value === 'tap'));
@@ -172,7 +173,7 @@
     {#if router.current === 'reference'}
       <ReferencePage />
     {:else if router.current === 'identify'}
-      {#key identifyKind}<ExercisePage kind={identifyKind} />{/key}
+      {#if identifyKind === null}<IdentifyTempoPage />{:else}{#key identifyKind}<ExercisePage kind={identifyKind} />{/key}{/if}
     {:else if router.current === 'tune'}
       {#if tuneModes.value === 'pitch'}<TunePitchPage />{:else}<TuneTempoPage />{/if}
     {:else if router.current === 'sing-practice'}

@@ -22,6 +22,8 @@ export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
 export type ChromaMasker = 'off' | 'short' | 'long';
 /** Tune tempo: tune to your anchor tempo, or to a target shown as Settings → Tempo says. */
 export type TempoTuneLevel = 'anchor' | 'shown';
+/** Identify tempo: answer with a term (one tap) or a number of BPM. */
+export type TempoIdentifyAnswer = 'term' | 'number';
 /** Tempo exercises: how a target tempo is written (a term counts anywhere in its band). */
 export type TempoTargetStyle = 'number' | 'mark' | 'term';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
@@ -73,6 +75,7 @@ export interface Settings {
   /** Tune tempo: the one tempo the anchor level trains (BPM). */
   tempoAnchorBpm: number;
   tempoTuneLevel: TempoTuneLevel;
+  tempoIdentifyAnswer: TempoIdentifyAnswer;
 }
 
 export const OCTAVE_MIN = 1;
@@ -143,6 +146,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   tempoTargetStyle: 'mark',
   tempoAnchorBpm: 120,
   tempoTuneLevel: 'anchor',
+  tempoIdentifyAnswer: 'term',
 });
 
 export function defaultSettings(): Settings {
@@ -233,6 +237,7 @@ export function sanitizeSettings(input: unknown): Settings {
     tempoTargetStyle: oneOf(raw.tempoTargetStyle, ['number', 'mark', 'term'] as const, d.tempoTargetStyle),
     tempoAnchorBpm: Math.round(clamp(num(raw.tempoAnchorBpm, d.tempoAnchorBpm), BPM_MIN, BPM_MAX)),
     tempoTuneLevel: oneOf(raw.tempoTuneLevel, ['anchor', 'shown'] as const, d.tempoTuneLevel),
+    tempoIdentifyAnswer: oneOf(raw.tempoIdentifyAnswer, ['term', 'number'] as const, d.tempoIdentifyAnswer),
   };
 }
 

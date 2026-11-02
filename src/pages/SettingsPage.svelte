@@ -32,6 +32,7 @@
     type ReplayOctave,
     type ReferenceOctaves,
     type ReplayPolicy,
+    type TempoIdentifyAnswer,
     type TempoTargetStyle,
     type Waveform,
   } from '../domain/settings';
@@ -116,6 +117,7 @@
   const KEYBOARD_SIZES: [ReferenceOctaves, string][] = [[1, '1 octave'], [2, '2 octaves'], [3, '3 octaves']];
   const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
   const TARGET_STYLES: [TempoTargetStyle, string][] = [['number', 'Number'], ['mark', 'Mark'], ['term', 'Term']];
+  const IDENTIFY_ANSWERS: [TempoIdentifyAnswer, string][] = [['term', 'Term'], ['number', 'Number']];
 </script>
 
 <div class="settings">
@@ -371,6 +373,21 @@
       A number (96 BPM), a metronome mark as on sheet music (<TempoMark bpm={96} />), or an Italian term
       (Andante), where anything in the term's range counts.
     </p>
+    </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Identify tempo: answer with</legend>
+      <div class="segmented">
+        {#each IDENTIFY_ANSWERS as [value, label] (value)}
+          <label class:checked={s.tempoIdentifyAnswer === value}>
+            <input type="radio" name="tempo-identify-answer" {value} checked={s.tempoIdentifyAnswer === value}
+              onchange={() => settings.update({ tempoIdentifyAnswer: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">A term is one tap from a few broad choices; a number is scored in % like the other tempo exercises.</p>
     </div>
     <label class="field item">
       <span>Counts as correct within <output>±{s.tempoTolerancePct}%</output></span>

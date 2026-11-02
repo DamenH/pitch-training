@@ -1,5 +1,7 @@
 # Tune and Tempo Roadmap
 
+> **All five phases shipped on 2026-11-02.**
+
 Agreed on 2026-11-02. The aim is tempo training that works like pitch training: remember a tempo
 without a reference, the way the app trains remembering a note. It also teaches tempo notation.
 No new tabs: the five tabs stay, and tempo arrives as modes inside existing tabs.
@@ -276,6 +278,11 @@ and assert the reveal shows a mark, a term and a signed %.
 ---
 
 ## Phase 5: Identify → Tempo
+
+**Shipped 2026-11-02.** Rendered by its own `IdentifyTempoPage` rather than as an `ExerciseKind`,
+so the pitch `Question` type is unchanged. The term choices are those with room for a target clear
+of their edges inside the tempo range (Adagio, Andante, Moderato and Allegro at 60–160), and term
+answers are stored by name (`answerTerm`) in History.
 
 **Behaviour**
 - Plays 8 clicks at the target tempo (Replay as for notes; single-play mode applies; it

@@ -173,6 +173,17 @@ describe('history', () => {
     expect(sanitizeHistory([legacy])[0]).toMatchObject({ targetMidi: 60, targetPitchClass: 0, targetBpm: null, tempoErrorPct: null });
   });
 
+  it('stores a term answer by name, without a tempo or error', () => {
+    const target = { bpm: 92, style: 'term' as const, term: 'Andante' };
+    const entry = entryFromTempo('identify-tempo', target, { bpm: 110, errorPct: 0, correct: false }, {
+      responseMs: 1,
+      answerTerm: 'Moderato',
+    });
+    expect(entry).toMatchObject({ targetBpm: 92, targetTerm: 'Andante', answerTerm: 'Moderato', answerBpm: null, tempoErrorPct: null });
+    expect(sanitizeHistory([entry])).toEqual([entry]);
+    expect(tempoStats([entry])['identify-tempo'].rounds).toBe(0);
+  });
+
   it('reports tempo miss and bias per exercise', () => {
     const target = { bpm: 100, style: 'number' as const, term: null };
     const entries = [4, -2, 6].map((err) =>

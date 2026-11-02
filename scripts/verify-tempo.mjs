@@ -172,3 +172,37 @@ export async function verifyTune(page, url) {
   await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Tune tempo$/ }) })).toHaveCount(1);
   console.log('  tune: pitch wheel drag/scroll/keys, tempo rounds with hidden tempo, compare, next and history passed');
 }
+
+export async function verifyIdentifyTempo(page, url) {
+  await page.goto(`${url}#/identify/tempo`);
+  await expect(page.locator('.mode')).toHaveText('Tempo');
+  const clicks = await countClicks(page);
+  const terms = page.getByRole('group', { name: 'Which tempo is it?' });
+  // Nothing to judge until it has played.
+  await expect(terms.getByRole('button').first()).toBeDisabled();
+  const before = await clicks();
+  await page.getByRole('button', { name: 'Play tempo' }).click();
+  await expect.poll(clicks).toBe(before + 8);
+  await terms.getByRole('button').first().click();
+  await expect(page.locator('.feedback .verdict')).toBeVisible();
+  await expect(page.locator('.feedback .detail')).toContainText('It was');
+  // Next plays the new tempo straight away.
+  const answered = await clicks();
+  await page.getByRole('button', { name: /Next tempo/ }).click();
+  await expect.poll(clicks).toBe(answered + 8);
+  await expect(page.locator('.feedback .verdict')).toHaveCount(0);
+
+  await page.goto(`${url}#/settings`);
+  await page.locator('label:has(input[name="tempo-identify-answer"][value="number"])').click();
+  await page.goto(`${url}#/identify/tempo`);
+  await page.getByRole('button', { name: 'Play tempo' }).click();
+  await page.getByRole('spinbutton', { name: /Your answer/ }).fill('100');
+  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await expect(page.locator('.feedback .detail')).toContainText('You said 100');
+  await expect(page.locator('.feedback .meter')).toBeVisible();
+  await page.goto(`${url}#/history`);
+  await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Identify tempo$/ }) })).toHaveCount(2);
+  await page.goto(`${url}#/settings`);
+  await page.locator('label:has(input[name="tempo-identify-answer"][value="term"])').click();
+  console.log('  identify tempo: clicks before answering, term and number answers, autoplay on next and history passed');
+}

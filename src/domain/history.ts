@@ -53,11 +53,13 @@ export interface HistoryEntry {
   tempoErrorPct: number | null;
   /** Tempo exercises only: the target term, when the target was written as one. */
   targetTerm: string | null;
+  /** Identify tempo by term: the term chosen. */
+  answerTerm: string | null;
   /** Milliseconds from question start (identify: first playback) to submission. */
   responseMs: number;
 }
 
-const NO_TEMPO = { targetBpm: null, answerBpm: null, tempoErrorPct: null, targetTerm: null } as const;
+const NO_TEMPO = { targetBpm: null, answerBpm: null, tempoErrorPct: null, targetTerm: null, answerTerm: null } as const;
 
 export function entryFromResult(
   question: Question,
@@ -148,7 +150,7 @@ export function entryFromTempo(
   exercise: TempoExercise,
   target: TempoTarget,
   result: TempoResult,
-  opts: { responseMs: number; cold?: boolean; date?: Date },
+  opts: { responseMs: number; cold?: boolean; answerTerm?: string; date?: Date },
 ): HistoryEntry {
   return {
     date: (opts.date ?? new Date()).toISOString(),
@@ -165,9 +167,11 @@ export function entryFromTempo(
     exact: null,
     policy: null,
     targetBpm: target.bpm,
-    answerBpm: oneDecimal(result.bpm),
-    tempoErrorPct: oneDecimal(result.errorPct),
+    // A term answer has no tempo of its own, so no error in % either.
+    answerBpm: opts.answerTerm === undefined ? oneDecimal(result.bpm) : null,
+    tempoErrorPct: opts.answerTerm === undefined ? oneDecimal(result.errorPct) : null,
     targetTerm: target.term,
+    answerTerm: opts.answerTerm ?? null,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
 }
@@ -319,6 +323,7 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
       answerBpm: tempo ? num(e.answerBpm) : null,
       tempoErrorPct: tempo ? num(e.tempoErrorPct) : null,
       targetTerm: tempo && typeof e.targetTerm === 'string' ? e.targetTerm : null,
+      answerTerm: tempo && typeof e.answerTerm === 'string' ? e.answerTerm : null,
       responseMs: e.responseMs,
     });
   }

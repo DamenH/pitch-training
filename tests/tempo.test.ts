@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyzeTaps,
+  answerTermsFor,
+  createIdentifyTempoTarget,
   bandCentre,
   beatsUntil,
   BPM_MAX,
@@ -198,5 +200,50 @@ describe('tempo exercises', () => {
       expect(g).toBeLessThanOrEqual(0.6);
     }
     expect(new Set(gaps.map((g) => g.toFixed(3))).size).toBeGreaterThan(gaps.length / 2);
+  });
+});
+
+describe('identify tempo targets', () => {
+  const base = { ...defaultSettings(), tempoMin: 60, tempoMax: 160 };
+
+  it('offers the coarse terms with room for a target in the range', () => {
+    // Vivace (156–175) overlaps 60–160, but none of it is clear of its edges below 160.
+    expect(answerTermsFor(base).map((t) => t.name)).toEqual(['Adagio', 'Andante', 'Moderato', 'Allegro']);
+    expect(answerTermsFor({ ...base, tempoMin: 40, tempoMax: 208 }).map((t) => t.name)).toEqual([
+      'Largo',
+      'Adagio',
+      'Andante',
+      'Moderato',
+      'Allegro',
+      'Vivace',
+      'Presto',
+    ]);
+  });
+
+  it('plays a term target clear of its band edges, within the range', () => {
+    const rng = seeded(5);
+    let previous = createIdentifyTempoTarget(base, rng);
+    for (let i = 0; i < 500; i++) {
+      const t = createIdentifyTempoTarget(base, rng, previous);
+      const term = termByName(t.term!)!;
+      expect(t.style).toBe('term');
+      expect(t.term).not.toBe(previous.term);
+      expect(termForBpm(t.bpm).name).toBe(t.term);
+      expect(t.bpm).toBeGreaterThanOrEqual((term.band[0] - 0.5) * 1.04 - 0.5);
+      expect(t.bpm).toBeLessThanOrEqual((term.band[1] + 0.5) / 1.04 + 0.5);
+      expect(t.bpm).toBeGreaterThanOrEqual(60);
+      expect(t.bpm).toBeLessThanOrEqual(160);
+      previous = t;
+    }
+  });
+
+  it('plays any tempo in the range when answered by number', () => {
+    const rng = seeded(6);
+    for (let i = 0; i < 200; i++) {
+      const t = createIdentifyTempoTarget({ ...base, tempoIdentifyAnswer: 'number' }, rng);
+      expect(t.term).toBeNull();
+      expect(t.bpm).toBeGreaterThanOrEqual(60);
+      expect(t.bpm).toBeLessThanOrEqual(160);
+    }
   });
 });

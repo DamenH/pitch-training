@@ -216,3 +216,40 @@ export function generateTempoScramble(rng: Rng): number[] {
   for (let at = 0; at < TEMPO_SCRAMBLE_SECONDS; at += 0.12 + rng() * 0.48) offsets.push(at);
   return offsets;
 }
+
+/** Identify tempo by term: the choices, coarse enough to judge by ear. */
+export const ANSWER_TERMS: readonly TempoTerm[] = TEMPO_TERMS.filter((t) =>
+  ['Largo', 'Adagio', 'Andante', 'Moderato', 'Allegro', 'Vivace', 'Presto'].includes(t.name),
+);
+/** Identify tempo by term: targets keep at least this fraction clear of their band's edges. */
+const EDGE_MARGIN = 0.04;
+
+/** Where a term's targets may lie: inside the range and clear of the band's edges. Null if nowhere. */
+function termWindow(term: TempoTerm, settings: Settings): [number, number] | null {
+  const [edgeLow, edgeHigh] = bandEdges(term);
+  const low = Math.max(edgeLow * (1 + EDGE_MARGIN), settings.tempoMin);
+  const high = Math.min(edgeHigh / (1 + EDGE_MARGIN), settings.tempoMax);
+  return Math.ceil(low) <= Math.floor(high) ? [Math.ceil(low), Math.floor(high)] : null;
+}
+
+/** The term choices for a tempo range: those with room for a target clear of their edges. */
+export function answerTermsFor(settings: Settings): TempoTerm[] {
+  const playable = ANSWER_TERMS.filter((t) => termWindow(t, settings) !== null);
+  return playable.length > 0 ? playable : [termForBpm((settings.tempoMin + settings.tempoMax) / 2)];
+}
+
+/**
+ * A tempo to identify. Answered by term, it lies inside one of the choices' bands, clear of the
+ * edges so no tempo sits on a boundary; answered by number, anywhere in the range.
+ */
+export function createIdentifyTempoTarget(settings: Settings, rng: Rng, previous?: TempoTarget): TempoTarget {
+  if (settings.tempoIdentifyAnswer === 'number') {
+    return { ...createTempoTarget({ ...settings, tempoTargetStyle: 'number' }, rng, previous), term: null };
+  }
+  const terms = answerTermsFor(settings);
+  const fresh = terms.filter((t) => t.name !== previous?.term);
+  const term = pick(fresh.length > 0 ? fresh : terms, rng);
+  const window = termWindow(term, settings);
+  const bpm = window ? window[0] + Math.floor(rng() * (window[1] - window[0] + 1)) : bandCentre(term);
+  return { bpm, style: 'term', term: term.name };
+}
