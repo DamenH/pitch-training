@@ -24,6 +24,7 @@
   import MicPanel from '../components/MicPanel.svelte';
   import PitchMeter from '../components/PitchMeter.svelte';
   import OctavePicker from '../components/OctavePicker.svelte';
+  import Metronome from '../components/Metronome.svelte';
 
   const s = $derived(settings.value);
   let octave = $state(lastOctave);
@@ -142,6 +143,8 @@
           toleranceCents={s.toleranceCents} spelling={s.spelling} />
       {/if}
     </section>
+
+    <Metronome />
   </div>
 
   <ScoreLibrary onnotes={(notes) => { scoreNotes = notes; }} onplay={releaseKeys} />

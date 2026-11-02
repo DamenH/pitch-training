@@ -280,8 +280,13 @@ export async function playTimeline(
     if (onstart) cues.push(setTimeout(() => onstart(i), Math.max(0, (start - ctx.currentTime) * 1000)));
   });
 
+  await untilEnd(ctx, end, cues);
+}
+
+/** Wait until `end`, or until the next stopAll(); either way, cancel the pending visual cues. */
+function untilEnd(ctx: AudioContext, end: number, cues: readonly ReturnType<typeof setTimeout>[]): Promise<void> {
   const waitMs = Math.max(0, (end - ctx.currentTime) * 1000);
-  await new Promise<void>((resolve) => {
+  return new Promise<void>((resolve) => {
     const timer = setTimeout(done, waitMs);
     function done() {
       clearTimeout(timer);
@@ -291,6 +296,56 @@ export async function playTimeline(
     }
     finishCurrent = done;
   });
+}
+
+/** A metronome click: a short, bright blip, the same whatever the instrument, so it reads as a beat. */
+const CLICK_FREQUENCY = 1760;
+const CLICK_DECAY = 0.012;
+const CLICK_LENGTH = 0.06;
+const CLICK_MAX_GAIN = 0.6;
+
+function scheduleClick(ctx: AudioContext, at: number, volume: number): Voice {
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = CLICK_FREQUENCY;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, at);
+  gain.gain.linearRampToValueAtTime(perceptualGain(volume, CLICK_MAX_GAIN), at + 0.001);
+  gain.gain.setTargetAtTime(0, at + 0.001, CLICK_DECAY);
+  osc.connect(gain).connect(output(ctx));
+  osc.start(at);
+  osc.stop(at + CLICK_LENGTH);
+  return track([osc], gain, at + CLICK_LENGTH);
+}
+
+/** A metronome's click: not tracked, so stopAll() from exercises and keys doesn't silence it. */
+export function scheduleMetronomeClick(ctx: AudioContext, at: number, volume: number): void {
+  scheduleClick(ctx, at, volume);
+}
+
+/**
+ * Clicks at given offsets (seconds), calling `onclick(i)` as each sounds. Like playTimeline:
+ * it interrupts other playback, and resolves when done or interrupted.
+ */
+export async function playClicks(
+  offsets: readonly number[],
+  volume: number,
+  onclick?: (index: number) => void,
+): Promise<void> {
+  stopAll();
+  const myGeneration = generation;
+  const ctx = await resumeAudio();
+  if (myGeneration !== generation || offsets.length === 0) return;
+  const base = ctx.currentTime + 0.05;
+  const cues: ReturnType<typeof setTimeout>[] = [];
+  let end = base;
+  offsets.forEach((at, i) => {
+    const v = scheduleClick(ctx, base + at, volume);
+    voices.push(v);
+    end = Math.max(end, v.end);
+    if (onclick) cues.push(setTimeout(() => onclick(i), Math.max(0, (base + at - ctx.currentTime) * 1000)));
+  });
+  await untilEnd(ctx, end, cues);
 }
 
 /**

@@ -127,6 +127,11 @@ Tune and Test (screenshots at 390×844 and 1280×900), and old links redirect.
 
 ## Phase 2: Metronome engine, Reference panel and tempo notation
 
+**Shipped 2026-11-02.** As planned, except: `beatsUntil(lastBeat, bpm, now, horizon)` replaces
+`beatTimesBetween`, finite click runs (`playClicks` in `synth.ts`) stop with `stopAll()` while the
+metronome's clicks don't, the quarter note is drawn as SVG (`TempoMark.svelte`) because fonts
+render ♩ badly, and tapping a tempo term also starts the clicks.
+
 **Domain** (`src/domain/tempo.ts`, pure and fully unit-tested):
 - `TEMPO_TERMS` (the table above), `termForBpm(bpm)` using bands, `termByName`, `bandCentre(term)`.
 - `formatMark(bpm)` → `♩ = 96`.
