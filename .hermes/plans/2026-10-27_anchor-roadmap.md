@@ -1,5 +1,9 @@
 # Anchor and Chroma Roadmap
 
+> **2026-11-02:** the Anchor tab is now **Tune** (`#/tune/<mode>`), and its Tune mode is **Pitch**
+> (`#/tune/pitch`). The future modes below (octave tune, *Is it X?*, *Spot X*) will join it there,
+> though *Is it X?* and *Spot X* may fit Identify better. See `2026-11-02_tune-and-tempo.md`.
+
 Steps 1–4 shipped on 2026-10-27:
 
 1. Chroma answers straight away (one tap, toast, next pair).

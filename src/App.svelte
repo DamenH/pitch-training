@@ -8,7 +8,8 @@
   import ExercisePage from './pages/ExercisePage.svelte';
   import SettingsPage from './pages/SettingsPage.svelte';
   import HistoryPage from './pages/HistoryPage.svelte';
-  import AnchorPage from './pages/AnchorPage.svelte';
+  import TunePage from './pages/TunePage.svelte';
+  import { testModes } from './lib/testMode.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
 
   interface NavItem {
@@ -20,9 +21,9 @@
   const TABS: NavItem[] = [
     { route: 'reference', label: 'Reference', icon: 'piano' },
     { route: 'identify', label: 'Identify', icon: 'ear' },
-    { route: 'anchor', label: 'Anchor', icon: 'anchor' },
+    { route: 'tune', label: 'Tune', icon: 'tune' },
     { route: 'sing-practice', label: 'Sing', icon: 'mic' },
-    { route: 'sing-test', label: 'Test', icon: 'check' },
+    { route: 'test', label: 'Test', icon: 'check' },
   ];
   const IMPORT: NavItem = { route: 'import', label: 'Import', icon: 'plus' };
   const TOOLS: NavItem[] = [
@@ -33,9 +34,9 @@
   const TITLES: Record<Route, string> = {
     reference: 'Reference',
     identify: 'Identify',
-    anchor: 'Anchor',
+    tune: 'Tune',
     'sing-practice': 'Sing',
-    'sing-test': 'Sing test',
+    test: 'Test',
     import: 'Import',
     settings: 'Settings',
     history: 'History',
@@ -45,9 +46,9 @@
   const WIDTHS: Record<Route, string> = {
     reference: '1120px',
     identify: '640px',
-    anchor: '640px',
+    tune: '640px',
     'sing-practice': '640px',
-    'sing-test': '640px',
+    test: '640px',
     import: '640px',
     settings: '920px',
     history: '760px',
@@ -59,7 +60,7 @@
   const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyModes.value]);
   const modes = $derived(modesFor(router.current));
   /** Exercise screens fill the height on phones, so their answer controls sit above the tab bar. */
-  const fills = $derived(router.current === 'identify' || router.current === 'anchor');
+  const fills = $derived(router.current === 'identify' || router.current === 'tune');
 
   $effect(() => {
     const title = modes ? `${TITLES[router.current]} ${modes.labels[modes.value]}` : TITLES[router.current];
@@ -105,7 +106,7 @@
     {#each TABS as item (item.route)}
       <li>
         <a href={href(item.route)} aria-current={current(item.route)}>
-          <Icon name={item.icon} /><span>{item.route === 'sing-test' ? 'Sing test' : item.label}</span>
+          <Icon name={item.icon} /><span>{item.label}</span>
         </a>
       </li>
     {/each}
@@ -169,12 +170,12 @@
       <ReferencePage />
     {:else if router.current === 'identify'}
       {#key identifyKind}<ExercisePage kind={identifyKind} />{/key}
-    {:else if router.current === 'anchor'}
-      <AnchorPage />
+    {:else if router.current === 'tune'}
+      <TunePage />
     {:else if router.current === 'sing-practice'}
       <ExercisePage kind="sing-practice" />
-    {:else if router.current === 'sing-test'}
-      <ExercisePage kind="sing-test" />
+    {:else if router.current === 'test'}
+      {#if testModes.value === 'sing'}<ExercisePage kind="sing-test" />{/if}
     {:else if router.current === 'import'}
       <ImportPage />
     {:else if router.current === 'settings'}
@@ -302,7 +303,7 @@
     color: var(--chroma-text);
   }
 
-  .mode[data-mode^='anchor-'] {
+  .mode[data-mode^='tune-'] {
     border-color: var(--anchor);
     background: var(--anchor);
     color: var(--anchor-text);

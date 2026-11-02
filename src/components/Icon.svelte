@@ -17,6 +17,7 @@
     | 'upload'
     | 'trash'
     | 'anchor'
+    | 'tune'
     | 'sliders'
     | 'volume'
     | 'volume-off';
@@ -80,6 +81,8 @@
     <path d="M12 15V3M7 8l5-5 5 5" /><path d="M5 21h14" />
   {:else if name === 'trash'}
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+  {:else if name === 'tune'}
+    <circle cx="12" cy="13" r="7" /><path d="m12 13 3.5-3.5M12 3v2M4.2 6.2l1.4 1.4M19.8 6.2l-1.4 1.4" />
   {:else if name === 'anchor'}
     <circle cx="12" cy="5" r="2" /><path d="M12 7v14M8 11h8M5 14a7 7 0 0 0 14 0" />
   {:else if name === 'volume'}

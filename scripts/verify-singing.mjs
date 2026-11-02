@@ -7,7 +7,7 @@ export async function verifySinging(page, url) {
   for (const checkbox of await page.locator('.pcs input').all()) {
     if (await checkbox.getAttribute('aria-label') !== 'A' && await checkbox.isChecked()) await checkbox.uncheck();
   }
-  await page.goto(`${url}#/sing-test`);
+  await page.goto(`${url}#/test/sing`);
   await page.evaluate(() => {
     const original = navigator.mediaDevices.getUserMedia;
     const audio = new AudioContext();
@@ -76,7 +76,7 @@ export async function verifySinging(page, url) {
   await page.goto(`${url}#/settings`);
   const scramble = page.getByRole('switch', { name: /Scramble before each new note/ });
   await scramble.check();
-  await page.goto(`${url}#/sing-test`);
+  await page.goto(`${url}#/test/sing`);
   await page.getByRole('button', { name: 'Start microphone', exact: true }).click();
   await setSound(440);
   await expect(page.getByText('Note locked', { exact: true })).toBeVisible();
@@ -106,7 +106,7 @@ export async function verifySinging(page, url) {
   await page.getByRole('button', { name: 'All 12 notes', exact: true }).click();
   await page.goto(`${url}#/history`);
   await expect(page.locator('.recent')).toContainText('C4');
-  await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Sing$/ }) })).toHaveCount(1);
+  await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Test sing$/ }) })).toHaveCount(1);
   assert.equal(await page.evaluate(() => Object.keys(localStorage).some((key) => key.endsWith('history/v1'))), true);
   console.log('  singing: progress, target-independent locking, re-record, frozen scoring, retention, next-question reset, scramble pause and history passed');
 }
@@ -136,7 +136,8 @@ export async function verifyScramble(page, url) {
   await answerAndContinue();
   await page.waitForTimeout(800);
   const plain = await starts();
-  assert.equal(plain, 1, 'Without scramble, Next note plays nothing');
+  // The question's play, then Next note plays the new question straight away.
+  assert.equal(plain, 2, 'Without scramble, Next note plays only the new note');
   await page.goto(`${url}#/settings`);
   await scramble.check();
   await page.goto(`${url}#/identify`);

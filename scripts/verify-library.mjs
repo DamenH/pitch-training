@@ -12,6 +12,18 @@ async function copyLink(page) {
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
+/**
+ * Held keys sustain and letting go damps them, but never before the note length in Settings
+ * (1.5 s by default): every voice's latest scheduled stop is at least a second after its start.
+ */
+async function assertStillRinging(page) {
+  const spans = await page.evaluate(() =>
+    globalThis.pianoTestVoices.slice(-2).map((v) => (v.stops.at(-1)?.[0] ?? Infinity) - (v.starts[0] ?? 0)),
+  );
+  assert.equal(spans.length, 2);
+  for (const span of spans) assert(span >= 1, `A released key stopped after only ${span.toFixed(2)} s`);
+}
+
 export async function verifyLibrary(context, page, url) {
   await context.setOffline(false);
   await page.goto(`${url}#/reference`);
@@ -32,18 +44,18 @@ export async function verifyLibrary(context, page, url) {
   });
   await expect(page.getByRole('button', { name: 'Add to sequence', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Play again', exact: true })).toHaveCount(0);
-  // Computer-key chords: releasing keys must leave both reference tones ringing.
+  // Computer-key chords: releasing keys must leave both reference tones ringing for a full note.
   await page.keyboard.down('a');
   await page.keyboard.down('d');
   await expect(page.locator('.piano .playing')).toHaveCount(2);
   await page.waitForFunction(() => globalThis.pianoTestVoices.length >= 2);
-  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
+  await assertStillRinging(page);
   await page.keyboard.up('a');
   await expect(page.locator('.piano .playing')).toHaveCount(1);
-  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
+  await assertStillRinging(page);
   await page.keyboard.up('d');
   await expect(page.locator('.piano .playing')).toHaveCount(0);
-  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
+  await assertStillRinging(page);
 
   // Real multi-touch pointer events, including independent releases.
   await page.evaluate(() => { globalThis.pianoTestVoices = []; });
@@ -60,7 +72,7 @@ export async function verifyLibrary(context, page, url) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(page.locator('.piano .playing')).toHaveCount(0);
   await page.waitForFunction(() => globalThis.pianoTestVoices.length >= 2);
-  assert.deepEqual(await page.evaluate(() => globalThis.pianoTestVoices.slice(-2).map((v) => v.stops.length)), [1, 1]);
+  await assertStillRinging(page);
 
   const score = { version: 1, title: 'Saved chord 🎹', notes: [60, 64, 67].map((midi) => ({ midi, time: 0, duration: 2, velocity: 0.7 })) };
   await page.goto(`${url}#/import`);

@@ -9,7 +9,7 @@
     totalMiss: number;
   }
 
-  // Like the other tabs, Anchor keeps its round and tally while you visit other screens.
+  // Like the other tabs, Tune keeps its round and tally while you visit other screens.
   let session: Session | undefined;
 </script>
 
@@ -29,7 +29,7 @@
   import { stopAll } from '../audio/synth';
   import { settings } from '../lib/settings.svelte';
   import { history } from '../lib/history.svelte';
-  import { anchorModes } from '../lib/anchorMode.svelte';
+  import { tuneModes } from '../lib/tuneMode.svelte';
   import TuneQuestion from '../components/TuneQuestion.svelte';
   import Icon from '../components/Icon.svelte';
   import Sheet from '../components/Sheet.svelte';
@@ -85,7 +85,7 @@
   const avgMiss = $derived(rounds > 0 ? Math.round(totalMiss / rounds) : null);
 </script>
 
-<div class="stack anchor">
+<div class="stack tune">
   <p class="meta">
     <span aria-label={`This session: found ${found} of ${rounds}${avgMiss === null ? '' : `, average miss ${avgMiss} cents`}`}>
       {`Session ${found}/${rounds}${avgMiss === null ? '' : ` · avg miss ${avgMiss}¢`}`}
@@ -95,15 +95,15 @@
     </button>
   </p>
 
-  {#if anchorModes.value === 'tune'}
+  {#if tuneModes.value === 'pitch'}
     {#key round.id}
       <TuneQuestion {round} {autostart} {onresult} onnext={next} />
     {/key}
   {/if}
 </div>
 
-<Sheet bind:open={optionsOpen} label="Anchor options">
-  <p class="sheet-title">Anchor options</p>
+<Sheet bind:open={optionsOpen} label="Tune options">
+  <p class="sheet-title">Tune options</p>
   <fieldset class="field">
     <legend>Anchor note</legend>
     <div class="pcs">
@@ -207,7 +207,7 @@
 </Sheet>
 
 <style>
-  .anchor {
+  .tune {
     flex: 1;
   }
   .meta {

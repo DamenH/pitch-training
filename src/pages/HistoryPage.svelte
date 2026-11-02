@@ -64,16 +64,16 @@
     ['identify', 'Identify notes'],
     ['identify-octave', 'Identify octaves'],
     ['identify-chroma', 'Identify chroma'],
-    ['anchor-tune', 'Anchor tune'],
-    ['sing-test', 'Sing test'],
+    ['anchor-tune', 'Tune pitch'],
+    ['sing-test', 'Test sing'],
   ] as const;
 
   const EXERCISE_NAMES: Record<HistoryEntry['exercise'], string> = {
     identify: 'Identify notes',
     'identify-octave': 'Identify octaves',
     'identify-chroma': 'Identify chroma',
-    'anchor-tune': 'Anchor tune',
-    'sing-test': 'Sing',
+    'anchor-tune': 'Tune pitch',
+    'sing-test': 'Test sing',
   };
 </script>
 
@@ -111,7 +111,7 @@
 
     {#if tune.all.rounds > 0}
       <section aria-labelledby="tune-h">
-        <h2 id="tune-h" class="eyebrow">Anchor tune</h2>
+        <h2 id="tune-h" class="eyebrow">Tune pitch</h2>
         <ul class="exercises">
           {#each [['All rounds', tune.all], ['Cold rounds', tune.cold]] as const as [label, t] (label)}
             <li>

@@ -1,18 +1,20 @@
 // Hash-based routing: works on GitHub Pages without server-side rewrites.
 
 import { flushSync } from 'svelte';
-import { anchorModes } from './anchorMode.svelte';
 import { identifyModes } from './identifyMode.svelte';
+import { upgradeLegacyHash } from './legacyRoutes';
+import { testModes } from './testMode.svelte';
+import { tuneModes } from './tuneMode.svelte';
 import type { PageModes } from './pageModes.svelte';
 
-export type Route = 'reference' | 'identify' | 'anchor' | 'sing-practice' | 'sing-test' | 'import' | 'settings' | 'history';
+export type Route = 'reference' | 'identify' | 'tune' | 'sing-practice' | 'test' | 'import' | 'settings' | 'history';
 
 export const ROUTES: readonly Route[] = [
   'reference',
   'identify',
-  'anchor',
+  'tune',
   'sing-practice',
-  'sing-test',
+  'test',
   'import',
   'settings',
   'history',
@@ -20,10 +22,10 @@ export const ROUTES: readonly Route[] = [
 export const DEFAULT_ROUTE: Route = 'identify';
 
 /** Top-level destinations; the others are screens pushed on top of them. */
-export const TABS: readonly Route[] = ['reference', 'identify', 'anchor', 'sing-practice', 'sing-test'];
+export const TABS: readonly Route[] = ['reference', 'identify', 'tune', 'sing-practice', 'test'];
 
 /** Tabs whose modes are part of the route, e.g. `#/identify/chroma`. */
-const MODES: Partial<Record<Route, PageModes<string>>> = { identify: identifyModes, anchor: anchorModes };
+const MODES: Partial<Record<Route, PageModes<string>>> = { identify: identifyModes, tune: tuneModes, test: testModes };
 
 export function modesFor(route: Route): PageModes<string> | undefined {
   return MODES[route];
@@ -40,6 +42,12 @@ function parse(hash: string): Route {
 
 function syncMode(hash: string) {
   MODES[parse(hash)]?.sync(hash);
+}
+
+/** Rewrite a link to a renamed tab (`#/anchor/tune`, `#/sing-test`) to its current route, in place. */
+function upgradeLocation() {
+  const upgraded = upgradeLegacyHash(location.hash);
+  if (upgraded) history.replaceState(history.state, '', upgraded);
 }
 
 interface ViewTransition {
@@ -59,6 +67,7 @@ class Router {
   constructor() {
     syncMode(location.hash);
     window.addEventListener('hashchange', () => {
+      upgradeLocation();
       syncMode(location.hash);
       this.go(parse(location.hash));
     });
@@ -91,6 +100,7 @@ class Router {
   }
 }
 
+upgradeLocation();
 export const router = new Router();
 
 export function href(route: Route): string {
