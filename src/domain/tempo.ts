@@ -1,5 +1,8 @@
 // Tempo: beats per minute (quarter-note beats), the Italian terms written on sheet music,
-// metronome beat scheduling and tap analysis. Pure, so it is fully unit-tested.
+// metronome beat scheduling, tap analysis and tempo exercises. Pure, so it is fully unit-tested.
+
+import type { Rng } from './exercise';
+import type { Settings, TempoTargetStyle } from './settings';
 
 export const BPM_MIN = 40;
 export const BPM_MAX = 208;
@@ -98,6 +101,10 @@ export interface TapAnalysis {
   cv: number;
 }
 
+function pick<T>(items: readonly T[], rng: Rng): T {
+  return items[Math.min(items.length - 1, Math.floor(rng() * items.length))]!;
+}
+
 function median(xs: readonly number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const mid = s.length >> 1;
@@ -117,4 +124,95 @@ export function analyzeTaps(times: readonly number[], window = TAP_WINDOW): TapA
   const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
   const sd = Math.sqrt(intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length);
   return { bpm: 60000 / median(intervals), intervals, cv: mean > 0 ? sd / mean : 0 };
+}
+
+// ---------------------------------------------------------------- exercises
+
+/** Terms used as targets and answers: Allegretto's band is too narrow to judge by ear. */
+export const TARGET_TERMS: readonly TempoTerm[] = TEMPO_TERMS.filter((t) => t.name !== 'Allegretto');
+/** A new number target differs from the last one by at least this fraction. */
+const MIN_CHANGE = 0.08;
+
+export interface TempoTarget {
+  bpm: number;
+  /** How the target is written. For a term, any tempo in its band counts and `bpm` is the band's centre. */
+  style: TempoTargetStyle;
+  term: string | null;
+}
+
+/** A target tempo within the range in Settings, clearly different from the previous one. */
+export function createTempoTarget(settings: Settings, rng: Rng, previous?: TempoTarget): TempoTarget {
+  const { tempoMin: min, tempoMax: max, tempoTargetStyle: style } = settings;
+  if (style === 'term') {
+    const inRange = TARGET_TERMS.filter((t) => t.band[0] <= max && t.band[1] >= min);
+    const pool = inRange.length > 0 ? inRange : [termForBpm((min + max) / 2)];
+    const fresh = pool.filter((t) => t.name !== previous?.term);
+    const term = pick(fresh.length > 0 ? fresh : pool, rng);
+    return { bpm: bandCentre(term), style, term: term.name };
+  }
+  let bpm = min;
+  for (let i = 0; i < 50; i++) {
+    bpm = min + Math.floor(rng() * (max - min + 1));
+    if (!previous || Math.abs(bpm / previous.bpm - 1) >= MIN_CHANGE) break;
+  }
+  return { bpm, style, term: null };
+}
+
+/** A term's band as continuous tempos [low, high), matching how termForBpm rounds. */
+function bandEdges(term: TempoTerm): [number, number] {
+  return [term.band[0] - 0.5, term.band[1] + 0.5];
+}
+
+/** Signed % from the target (positive is fast); for a term, from the nearer edge of its band, 0 inside. */
+export function tempoError(bpm: number, target: TempoTarget): number {
+  const term = target.term === null ? undefined : termByName(target.term);
+  if (!term) return (bpm / target.bpm - 1) * 100;
+  const [low, high] = bandEdges(term);
+  if (bpm < low) return (bpm / low - 1) * 100;
+  if (bpm >= high) return (bpm / high - 1) * 100;
+  return 0;
+}
+
+export interface TempoResult {
+  bpm: number;
+  errorPct: number;
+  correct: boolean;
+}
+
+/** A term target counts anywhere in its band; a number within the tolerance in %. */
+export function evaluateTempo(target: TempoTarget, bpm: number, tolerancePct: number): TempoResult {
+  const errorPct = tempoError(bpm, target);
+  const term = target.term === null ? undefined : termByName(target.term);
+  let correct: boolean;
+  if (term) {
+    const [low, high] = bandEdges(term);
+    correct = bpm >= low && bpm < high;
+  } else {
+    // A hair of slack, so 105 against 100 (5.000000000000004%) is within ±5%.
+    correct = Math.abs(errorPct) <= tolerancePct + 1e-9;
+  }
+  return { bpm, errorPct, correct };
+}
+
+export type Steadiness = 'steady' | 'a little uneven' | 'uneven';
+
+export function steadiness(cv: number): Steadiness {
+  return cv < 0.03 ? 'steady' : cv < 0.06 ? 'a little uneven' : 'uneven';
+}
+
+/** "5.2% fast", "3% slow", "on tempo". */
+export function describeTempoError(errorPct: number): string {
+  const abs = Math.abs(errorPct);
+  if (abs < 0.05) return 'on tempo';
+  const shown = abs < 10 ? abs.toFixed(1).replace(/\.0$/, '') : Math.round(abs).toString();
+  return `${shown}% ${errorPct > 0 ? 'fast' : 'slow'}`;
+}
+
+/** About this long (s) of clicks at random, uneven gaps: no steady pulse survives into the next round. */
+export const TEMPO_SCRAMBLE_SECONDS = 2.5;
+
+export function generateTempoScramble(rng: Rng): number[] {
+  const offsets: number[] = [];
+  for (let at = 0; at < TEMPO_SCRAMBLE_SECONDS; at += 0.12 + rng() * 0.48) offsets.push(at);
+  return offsets;
 }

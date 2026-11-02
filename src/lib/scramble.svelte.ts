@@ -1,5 +1,6 @@
-import { playSequence } from '../audio/synth';
+import { playClicks, playSequence } from '../audio/synth';
 import { generateScramble } from '../domain/exercise';
+import { generateTempoScramble } from '../domain/tempo';
 import { midiToFrequency, type PitchClass } from '../domain/music';
 import { settings } from './settings.svelte';
 
@@ -21,6 +22,18 @@ export function playScramble(avoid?: PitchClass): Promise<void> {
   const s = settings.value;
   const notes = generateScramble(Math.random, avoid).map(midiToFrequency);
   return playSequence(notes, { duration: NOTE, volume: s.volume, waveform: s.waveform }, 0, STEP).finally(() => {
+    if (mine === run) scramble.playing = false;
+  });
+}
+
+/**
+ * Tempo exercises' scramble: clicks at random, uneven gaps, so no steady pulse carries over
+ * from the last round. Any other playback interrupts it.
+ */
+export function playTempoScramble(): Promise<void> {
+  const mine = ++run;
+  scramble.playing = true;
+  return playClicks(generateTempoScramble(Math.random), settings.value.volume).finally(() => {
     if (mine === run) scramble.playing = false;
   });
 }

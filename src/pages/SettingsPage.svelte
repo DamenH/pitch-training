@@ -21,6 +21,9 @@
     VOCAL_MIDI_MAX,
     VOCAL_MIDI_MIN,
     VOCAL_PRESETS,
+    normalizeTempoRange,
+    TEMPO_TOLERANCE_MAX,
+    TEMPO_TOLERANCE_MIN,
     WAVEFORM_LABELS,
     WAVEFORMS,
     type ScoringPolicy,
@@ -29,14 +32,17 @@
     type ReplayOctave,
     type ReferenceOctaves,
     type ReplayPolicy,
+    type TempoTargetStyle,
     type Waveform,
   } from '../domain/settings';
+  import { BPM_MAX, BPM_MIN, termForBpm } from '../domain/tempo';
   import { settings } from '../lib/settings.svelte';
   import { playMidi } from '../lib/playback';
   import { onPress } from '../lib/native';
   import InstallApp from '../components/InstallApp.svelte';
   import Icon from '../components/Icon.svelte';
   import Sheet from '../components/Sheet.svelte';
+  import TempoMark from '../components/TempoMark.svelte';
 
   const s = $derived(settings.value);
   let notice = $state('');
@@ -64,6 +70,21 @@
   function choosePreset(id: string) {
     const p = VOCAL_PRESETS.find((x) => x.id === id);
     if (p) setVocal(p.low, p.high);
+  }
+
+  // Every 5 BPM across the metronome's range and its top, plus the current ends (widening can land between).
+  const tempos = $derived(
+    [...new Set([
+      ...Array.from({ length: Math.floor((BPM_MAX - BPM_MIN) / 5) + 1 }, (_, i) => BPM_MIN + i * 5),
+      BPM_MAX,
+      s.tempoMin,
+      s.tempoMax,
+    ])].sort((x, y) => x - y),
+  );
+
+  function setTempoRange(min: number, max: number) {
+    const r = normalizeTempoRange(min, max);
+    settings.update({ tempoMin: r.min, tempoMax: r.max });
   }
 
   function setOctaveMin(v: number) {
@@ -94,6 +115,7 @@
   const MASKERS: [ChromaMasker, string][] = [['off', 'Off'], ['short', 'Short'], ['long', 'Long']];
   const KEYBOARD_SIZES: [ReferenceOctaves, string][] = [[1, '1 octave'], [2, '2 octaves'], [3, '3 octaves']];
   const SCORING: [ScoringPolicy, string][] = [['pitch-class', 'Any octave'], ['exact', 'Exact octave']];
+  const TARGET_STYLES: [TempoTargetStyle, string][] = [['number', 'Number'], ['mark', 'Mark'], ['term', 'Term']];
 </script>
 
 <div class="settings">
@@ -155,8 +177,8 @@
     </label>
     <label class="item toggle">
       <span class="toggle-copy">
-        <strong>Scramble before each new note</strong>
-        <small>Play a brief random run to break relative pitch.</small>
+        <strong>Scramble before each new note or tempo</strong>
+        <small>Play a brief random run of notes, or of uneven clicks for tempo, so you can't judge from the last one.</small>
       </span>
       <input
         type="checkbox"
@@ -312,6 +334,53 @@
         step="5"
         value={s.toleranceCents}
         oninput={(e) => settings.update({ toleranceCents: Number(e.currentTarget.value) })}
+      />
+    </label>
+  </section>
+
+  <section aria-labelledby="tempo-h">
+    <h2 id="tempo-h" class="eyebrow">Tempo</h2>
+    <div class="pair item">
+      <label class="field">
+        <span>Slowest</span>
+        <select value={s.tempoMin} onchange={(e) => setTempoRange(Number(e.currentTarget.value), s.tempoMax)}>
+          {#each tempos as b (b)}<option value={b}>{b} BPM ({termForBpm(b).name})</option>{/each}
+        </select>
+      </label>
+      <label class="field">
+        <span>Fastest</span>
+        <select value={s.tempoMax} onchange={(e) => setTempoRange(s.tempoMin, Number(e.currentTarget.value))}>
+          {#each tempos as b (b)}<option value={b}>{b} BPM ({termForBpm(b).name})</option>{/each}
+        </select>
+      </label>
+    </div>
+    <div class="item stacked">
+<fieldset class="field">
+      <legend>Show targets as</legend>
+      <div class="segmented">
+        {#each TARGET_STYLES as [value, label] (value)}
+          <label class:checked={s.tempoTargetStyle === value}>
+            <input type="radio" name="tempo-target-style" {value} checked={s.tempoTargetStyle === value}
+              onchange={() => settings.update({ tempoTargetStyle: value })} />
+            {label}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+    <p class="muted small">
+      A number (96 BPM), a metronome mark as on sheet music (<TempoMark bpm={96} />), or an Italian term
+      (Andante), where anything in the term's range counts.
+    </p>
+    </div>
+    <label class="field item">
+      <span>Counts as correct within <output>±{s.tempoTolerancePct}%</output></span>
+      <input
+        type="range"
+        min={TEMPO_TOLERANCE_MIN}
+        max={TEMPO_TOLERANCE_MAX}
+        step="1"
+        value={s.tempoTolerancePct}
+        oninput={(e) => settings.update({ tempoTolerancePct: Number(e.currentTarget.value) })}
       />
     </label>
   </section>

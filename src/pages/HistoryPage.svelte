@@ -1,6 +1,17 @@
 <script lang="ts">
   import { ALL_PITCH_CLASSES, noteName, pitchClassName } from '../domain/music';
-  import { summarize, tuneStats, type HistoryEntry, type Tally, type TuneStats } from '../domain/history';
+  import {
+    isTempoExercise,
+    summarize,
+    tempoStats,
+    tuneStats,
+    type HistoryEntry,
+    type Tally,
+    type TempoExercise,
+    type TempoStats,
+    type TuneStats,
+  } from '../domain/history';
+  import { describeTempoError } from '../domain/tempo';
   import { history } from '../lib/history.svelte';
   import { settings } from '../lib/settings.svelte';
   import { href } from '../lib/router.svelte';
@@ -12,6 +23,17 @@
   const summary = $derived(summarize(history.entries));
   const recent = $derived(history.entries.slice(-25).reverse());
   const tune = $derived(tuneStats(history.entries));
+  const tempo = $derived(tempoStats(history.entries));
+
+  function tempoMiss(t: TempoStats): string {
+    return t.meanMiss === null ? '—' : `${t.meanMiss.toFixed(1)}%`;
+  }
+
+  function tempoBias(t: TempoStats): string {
+    if (t.bias === null) return '—';
+    if (Math.abs(t.bias) < 0.5) return 'leans neither way';
+    return `tends to ${t.bias > 0 ? 'rush' : 'drag'} (${describeTempoError(t.bias)})`;
+  }
 
   function miss(t: TuneStats): string {
     return t.meanMiss === null ? '—' : `${Math.round(t.meanMiss)}¢`;
@@ -33,7 +55,11 @@
 
   function answerText(e: HistoryEntry): string {
     if (e.outcome === 'no-detection') return 'no steady note detected';
-    if (e.answer === null) return '—';
+    if (isTempoExercise(e.exercise)) {
+      if (e.answerBpm === null) return '—';
+      return `${Math.round(e.answerBpm)} BPM${e.tempoErrorPct === null ? '' : ` (${describeTempoError(e.tempoErrorPct)})`}`;
+    }
+    if (e.answer === null || e.targetPitchClass === null) return '—';
     if (e.exercise === 'identify') return pitchClassName(e.answer as 0, s.spelling);
     if (e.exercise === 'identify-octave') return `${pitchClassName(e.targetPitchClass, s.spelling)}${e.answer}`;
     if (e.exercise === 'identify-chroma') return e.answer === 1 ? 'same' : 'different';
@@ -42,6 +68,8 @@
   }
 
   function targetText(e: HistoryEntry): string {
+    if (isTempoExercise(e.exercise)) return e.targetTerm ?? `${e.targetBpm} BPM`;
+    if (e.targetMidi === null || e.targetPitchClass === null) return '—';
     if (e.exercise === 'identify-chroma') {
       const second = e.comparisonMidi === null ? '?' : noteName(e.comparisonMidi, s.spelling);
       return `${noteName(e.targetMidi, s.spelling)} → ${second}`;
@@ -66,7 +94,13 @@
     ['identify-chroma', 'Identify chroma'],
     ['anchor-tune', 'Tune pitch'],
     ['sing-test', 'Test sing'],
+    ['identify-tempo', 'Identify tempo'],
+    ['tune-tempo', 'Tune tempo'],
+    ['test-tap', 'Test tap'],
   ] as const;
+  const TEMPO_EXERCISES = EXERCISES.filter((e): e is Extract<(typeof EXERCISES)[number], readonly [TempoExercise, string]> =>
+    isTempoExercise(e[0]),
+  );
 
   const EXERCISE_NAMES: Record<HistoryEntry['exercise'], string> = {
     identify: 'Identify notes',
@@ -74,6 +108,9 @@
     'identify-chroma': 'Identify chroma',
     'anchor-tune': 'Tune pitch',
     'sing-test': 'Test sing',
+    'identify-tempo': 'Identify tempo',
+    'tune-tempo': 'Tune tempo',
+    'test-tap': 'Test tap',
   };
 </script>
 
@@ -86,7 +123,7 @@
     <div class="empty">
       <span class="glyph"><Icon name="chart" size={28} /></span>
       <p class="lead">No answers yet</p>
-      <p class="muted small">Results from Identify and Sing test appear here.</p>
+      <p class="muted small">Results from Identify, Tune and Test appear here.</p>
     </div>
   {:else}
     <section class="summary" aria-label="Summary">
@@ -100,11 +137,14 @@
       <ul class="exercises">
         {#each EXERCISES as [key, label] (key)}
           {@const t = summary.byExercise[key]}
+          <!-- Tempo exercises are listed once tried, so the list stays short. -->
+          {#if !isTempoExercise(key) || t.answered + t.noDetection > 0}
           <li>
             <span class="name">{label}</span>
             <span class="stat">{pct(t)}</span>
             <span class="muted small">{t.answered} answered · {secs(t.meanResponseMs)} avg{#if key === 'sing-test' && t.noDetection} · {t.noDetection} unheard{/if}</span>
           </li>
+          {/if}
         {/each}
       </ul>
     </section>
@@ -122,6 +162,24 @@
           {/each}
         </ul>
         <p class="muted small">Cold rounds come after an hour with nothing answered, so they show what you remember unaided.</p>
+      </section>
+    {/if}
+
+    {#if TEMPO_EXERCISES.some(([key]) => tempo[key].rounds > 0)}
+      <section aria-labelledby="tempo-h">
+        <h2 id="tempo-h" class="eyebrow">Tempo</h2>
+        <ul class="exercises">
+          {#each TEMPO_EXERCISES as [key, label] (key)}
+            {@const t = tempo[key]}
+            {#if t.rounds > 0}
+              <li>
+                <span class="name">{label}</span>
+                <span class="stat">{tempoMiss(t)}</span>
+                <span class="muted small">{t.rounds} {t.rounds === 1 ? 'round' : 'rounds'} · average miss · {tempoBias(t)}</span>
+              </li>
+            {/if}
+          {/each}
+        </ul>
       </section>
     {/if}
 

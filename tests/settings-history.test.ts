@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultSettings,
+  normalizeTempoRange,
   normalizeVocalRange,
   sanitizeSettings,
   togglePitchClass,
   visibleOctaves,
   VOCAL_MIN_SPAN,
 } from '../src/domain/settings';
-import { entryFromResult, sanitizeHistory, summarize, type HistoryEntry } from '../src/domain/history';
+import { entryFromResult, entryFromTempo, sanitizeHistory, summarize, tempoStats, type HistoryEntry } from '../src/domain/history';
 import type { Question } from '../src/domain/exercise';
 
 describe('settings', () => {
@@ -70,6 +71,27 @@ describe('settings', () => {
     expect(s.toleranceCents).toBe(5);
   });
 
+  it('validates the tempo settings', () => {
+    expect(sanitizeSettings({ tempoMin: 80, tempoMax: 140, tempoTolerancePct: 3, tempoTargetStyle: 'term' })).toMatchObject({
+      tempoMin: 80,
+      tempoMax: 140,
+      tempoTolerancePct: 3,
+      tempoTargetStyle: 'term',
+    });
+    expect(sanitizeSettings({ tempoTolerancePct: 0.2, tempoTargetStyle: 'roman' })).toMatchObject({
+      tempoTolerancePct: 1,
+      tempoTargetStyle: 'mark',
+    });
+    expect(sanitizeSettings({ tempoTolerancePct: 90 }).tempoTolerancePct).toBe(20);
+  });
+
+  it('orders, clamps and widens the tempo range', () => {
+    expect(normalizeTempoRange(150, 90)).toEqual({ min: 90, max: 150 });
+    expect(normalizeTempoRange(10, 500)).toEqual({ min: 40, max: 208 });
+    expect(normalizeTempoRange(100, 105)).toEqual({ min: 100, max: 120 });
+    expect(normalizeTempoRange(205, 208)).toEqual({ min: 188, max: 208 });
+  });
+
   it('keeps the vocal range at least one octave wide', () => {
     const r = normalizeVocalRange(60, 62);
     expect(r.high - r.low).toBeGreaterThanOrEqual(VOCAL_MIN_SPAN);
@@ -124,5 +146,40 @@ describe('history', () => {
     const summary = summarize([entry]);
     expect(summary.byExercise['identify-chroma']).toMatchObject({ answered: 1, correct: 1 });
     expect(summary.byPitchClass[2].answered).toBe(0);
+  });
+
+  it('stores tempo results without a target note, and keeps them out of the per-note tally', () => {
+    const target = { bpm: 96, style: 'mark' as const, term: null };
+    const entry = entryFromTempo('test-tap', target, { bpm: 100.83, errorPct: 5.03, correct: false }, { responseMs: 4300 });
+    expect(entry).toMatchObject({
+      exercise: 'test-tap',
+      targetMidi: null,
+      targetPitchClass: null,
+      targetBpm: 96,
+      answerBpm: 100.8,
+      tempoErrorPct: 5,
+      targetTerm: null,
+      outcome: 'incorrect',
+    });
+    expect(sanitizeHistory([entry])).toEqual([entry]);
+    const summary = summarize([entry]);
+    expect(summary.byExercise['test-tap']).toMatchObject({ answered: 1, incorrect: 1 });
+    for (const pc of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const) expect(summary.byPitchClass[pc].answered).toBe(0);
+  });
+
+  it('drops tempo rows without a target tempo, and keeps pitch rows as they were', () => {
+    expect(sanitizeHistory([{ date: 'x', exercise: 'test-tap', outcome: 'correct', responseMs: 1 }])).toEqual([]);
+    const legacy = { date: '2026-01-01T00:00:00.000Z', exercise: 'identify', mixed: false, targetMidi: 60, outcome: 'correct', answer: 0, responseMs: 900 };
+    expect(sanitizeHistory([legacy])[0]).toMatchObject({ targetMidi: 60, targetPitchClass: 0, targetBpm: null, tempoErrorPct: null });
+  });
+
+  it('reports tempo miss and bias per exercise', () => {
+    const target = { bpm: 100, style: 'number' as const, term: null };
+    const entries = [4, -2, 6].map((err) =>
+      entryFromTempo('test-tap', target, { bpm: 100 + err, errorPct: err, correct: Math.abs(err) <= 5 }, { responseMs: 1 }),
+    );
+    const stats = tempoStats(entries);
+    expect(stats['test-tap']).toEqual({ rounds: 3, meanMiss: 4, bias: expect.closeTo(8 / 3, 6) });
+    expect(stats['tune-tempo']).toEqual({ rounds: 0, meanMiss: null, bias: null });
   });
 });

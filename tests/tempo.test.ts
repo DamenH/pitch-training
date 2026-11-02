@@ -6,13 +6,32 @@ import {
   BPM_MAX,
   BPM_MIN,
   clampBpm,
+  createTempoTarget,
+  describeTempoError,
+  evaluateTempo,
   formatMark,
   formatRange,
+  generateTempoScramble,
+  steadiness,
   steadyBeats,
+  TEMPO_SCRAMBLE_SECONDS,
   TEMPO_TERMS,
   termByName,
   termForBpm,
 } from '../src/domain/tempo';
+import { defaultSettings } from '../src/domain/settings';
+
+/** Deterministic PRNG (mulberry32) so tests are reproducible. */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 describe('tempo terms', () => {
   it('has contiguous, disjoint bands covering the whole BPM range', () => {
@@ -102,5 +121,82 @@ describe('analyzeTaps', () => {
     const slowThenFast = [0, 1000, 2000, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000];
     expect(analyzeTaps(slowThenFast)!.intervals).toHaveLength(8);
     expect(analyzeTaps(slowThenFast)!.bpm).toBeCloseTo(120, 6);
+  });
+});
+
+describe('tempo exercises', () => {
+  const base = { ...defaultSettings(), tempoMin: 60, tempoMax: 160 };
+
+  it('draws number targets inside the range, clearly different from the last', () => {
+    const rng = seeded(1);
+    let previous = createTempoTarget({ ...base, tempoTargetStyle: 'mark' }, rng);
+    for (let i = 0; i < 300; i++) {
+      const t = createTempoTarget({ ...base, tempoTargetStyle: 'mark' }, rng, previous);
+      expect(t.bpm).toBeGreaterThanOrEqual(60);
+      expect(t.bpm).toBeLessThanOrEqual(160);
+      expect(Number.isInteger(t.bpm)).toBe(true);
+      expect(Math.abs(t.bpm / previous.bpm - 1)).toBeGreaterThanOrEqual(0.08);
+      expect(t.term).toBeNull();
+      previous = t;
+    }
+  });
+
+  it('draws term targets from terms in range, never Allegretto, never the same twice running', () => {
+    const rng = seeded(2);
+    const settings = { ...base, tempoTargetStyle: 'term' as const };
+    let previous = createTempoTarget(settings, rng);
+    const seen = new Set<string>();
+    for (let i = 0; i < 300; i++) {
+      const t = createTempoTarget(settings, rng, previous);
+      const term = termByName(t.term!)!;
+      expect(t.term).not.toBe('Allegretto');
+      expect(t.term).not.toBe(previous.term);
+      expect(term.band[0]).toBeLessThanOrEqual(160);
+      expect(term.band[1]).toBeGreaterThanOrEqual(60);
+      expect(t.bpm).toBe(bandCentre(term));
+      seen.add(t.term!);
+      previous = t;
+    }
+    // Largo (45–59) and Presto (176–199) lie outside 60–160.
+    expect([...seen].sort()).toEqual(['Adagio', 'Allegro', 'Andante', 'Moderato', 'Vivace']);
+  });
+
+  it('scores numbers by % against the tolerance, fast positive', () => {
+    const target = { bpm: 100, style: 'number' as const, term: null };
+    expect(evaluateTempo(target, 105, 5)).toEqual({ bpm: 105, errorPct: expect.closeTo(5, 6), correct: true });
+    expect(evaluateTempo(target, 94.9, 5).correct).toBe(false);
+    expect(evaluateTempo(target, 94.9, 5).errorPct).toBeCloseTo(-5.1, 6);
+  });
+
+  it('scores terms by their band, measuring a miss from the nearer edge', () => {
+    const target = { bpm: 90, style: 'term' as const, term: 'Andante' };
+    expect(evaluateTempo(target, 76, 5)).toMatchObject({ errorPct: 0, correct: true });
+    expect(evaluateTempo(target, 103.4, 5)).toMatchObject({ errorPct: 0, correct: true });
+    // 103.5 rounds to 104, which is Moderato.
+    expect(evaluateTempo(target, 103.5, 5).correct).toBe(false);
+    expect(termForBpm(103.5).name).toBe('Moderato');
+    expect(evaluateTempo(target, 70, 5).errorPct).toBeCloseTo((70 / 75.5 - 1) * 100, 6);
+  });
+
+  it('describes errors and steadiness', () => {
+    expect(describeTempoError(5.24)).toBe('5.2% fast');
+    expect(describeTempoError(-3)).toBe('3% slow');
+    expect(describeTempoError(-12.6)).toBe('13% slow');
+    expect(describeTempoError(0.01)).toBe('on tempo');
+    expect(steadiness(0.02)).toBe('steady');
+    expect(steadiness(0.05)).toBe('a little uneven');
+    expect(steadiness(0.2)).toBe('uneven');
+  });
+
+  it('scrambles with uneven clicks for about two and a half seconds', () => {
+    const offsets = generateTempoScramble(seeded(3));
+    expect(offsets[0]).toBe(0);
+    expect(offsets.at(-1)!).toBeLessThan(TEMPO_SCRAMBLE_SECONDS);
+    const gaps = offsets.slice(1).map((t, i) => t - offsets[i]!);
+    for (const g of gaps) {
+      expect(g).toBeGreaterThanOrEqual(0.12);
+      expect(g).toBeLessThanOrEqual(0.6);
+    }
+    expect(new Set(gaps.map((g) => g.toFixed(3))).size).toBeGreaterThan(gaps.length / 2);
   });
 });

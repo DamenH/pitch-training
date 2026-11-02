@@ -9,6 +9,7 @@
   import SettingsPage from './pages/SettingsPage.svelte';
   import HistoryPage from './pages/HistoryPage.svelte';
   import TunePage from './pages/TunePage.svelte';
+  import TapPage from './pages/TapPage.svelte';
   import { testModes } from './lib/testMode.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
 
@@ -60,7 +61,7 @@
   const identifyKind = $derived(IDENTIFY_MODE_KINDS[identifyModes.value]);
   const modes = $derived(modesFor(router.current));
   /** Exercise screens fill the height on phones, so their answer controls sit above the tab bar. */
-  const fills = $derived(router.current === 'identify' || router.current === 'tune');
+  const fills = $derived(router.current === 'identify' || router.current === 'tune' || (router.current === 'test' && testModes.value === 'tap'));
 
   $effect(() => {
     const title = modes ? `${TITLES[router.current]} ${modes.labels[modes.value]}` : TITLES[router.current];
@@ -175,7 +176,7 @@
     {:else if router.current === 'sing-practice'}
       <ExercisePage kind="sing-practice" />
     {:else if router.current === 'test'}
-      {#if testModes.value === 'sing'}<ExercisePage kind="sing-test" />{/if}
+      {#if testModes.value === 'sing'}<ExercisePage kind="sing-test" />{:else}<TapPage />{/if}
     {:else if router.current === 'import'}
       <ImportPage />
     {:else if router.current === 'settings'}
@@ -307,6 +308,13 @@
     border-color: var(--anchor);
     background: var(--anchor);
     color: var(--anchor-text);
+  }
+
+  .mode[data-mode$='-tempo'],
+  .mode[data-mode='test-tap'] {
+    border-color: var(--tempo);
+    background: var(--tempo);
+    color: var(--tempo-text);
   }
 
   button.mode:active {

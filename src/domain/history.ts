@@ -2,15 +2,23 @@ import { ALL_PITCH_CLASSES, toPitchClass, type PitchClass } from './music';
 import type { ExerciseResult, Question } from './exercise';
 import type { TuneResult, TuneRound } from './anchor';
 import type { ScoringPolicy } from './settings';
+import type { TempoResult, TempoTarget } from './tempo';
 
-export type HistoryExercise = 'identify' | 'identify-octave' | 'identify-chroma' | 'anchor-tune' | 'sing-test';
+export type TempoExercise = 'identify-tempo' | 'tune-tempo' | 'test-tap';
+export type HistoryExercise = 'identify' | 'identify-octave' | 'identify-chroma' | 'anchor-tune' | 'sing-test' | TempoExercise;
+const TEMPO_EXERCISES: readonly TempoExercise[] = ['identify-tempo', 'tune-tempo', 'test-tap'];
 const HISTORY_EXERCISES: readonly HistoryExercise[] = [
   'identify',
   'identify-octave',
   'identify-chroma',
   'anchor-tune',
   'sing-test',
+  ...TEMPO_EXERCISES,
 ];
+
+export function isTempoExercise(exercise: HistoryExercise): exercise is TempoExercise {
+  return (TEMPO_EXERCISES as readonly string[]).includes(exercise);
+}
 export type HistoryOutcome = 'correct' | 'incorrect' | 'no-detection';
 
 export interface HistoryEntry {
@@ -19,8 +27,9 @@ export interface HistoryEntry {
   exercise: HistoryExercise;
   /** True when the question came from Mixed Practice. */
   mixed: boolean;
-  targetMidi: number;
-  targetPitchClass: PitchClass;
+  /** Null for tempo exercises. */
+  targetMidi: number | null;
+  targetPitchClass: PitchClass | null;
   outcome: HistoryOutcome;
   /**
    * Identify notes: pitch class. Identify octaves: octave number. Identify chroma: 1 = same, 0 = different.
@@ -38,9 +47,17 @@ export interface HistoryEntry {
   /** Anchor tune only: only the chosen octave counted. */
   exact: boolean | null;
   policy: ScoringPolicy | null;
+  /** Tempo exercises only: the target tempo (a term's band centre), the answer, and the signed error in %. */
+  targetBpm: number | null;
+  answerBpm: number | null;
+  tempoErrorPct: number | null;
+  /** Tempo exercises only: the target term, when the target was written as one. */
+  targetTerm: string | null;
   /** Milliseconds from question start (identify: first playback) to submission. */
   responseMs: number;
 }
+
+const NO_TEMPO = { targetBpm: null, answerBpm: null, tempoErrorPct: null, targetTerm: null } as const;
 
 export function entryFromResult(
   question: Question,
@@ -56,6 +73,7 @@ export function entryFromResult(
     startMidi: null,
     cold: null,
     exact: null,
+    ...NO_TEMPO,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
   if (result.kind === 'identify') {
@@ -119,6 +137,37 @@ export function entryFromTune(
     startMidi: Math.round(round.startMidi * 100) / 100,
     cold: round.cold,
     exact: round.exact,
+    ...NO_TEMPO,
+    responseMs: Math.max(0, Math.round(opts.responseMs)),
+  };
+}
+
+const oneDecimal = (x: number) => Math.round(x * 10) / 10;
+
+export function entryFromTempo(
+  exercise: TempoExercise,
+  target: TempoTarget,
+  result: TempoResult,
+  opts: { responseMs: number; cold?: boolean; date?: Date },
+): HistoryEntry {
+  return {
+    date: (opts.date ?? new Date()).toISOString(),
+    exercise,
+    mixed: false,
+    targetMidi: null,
+    targetPitchClass: null,
+    outcome: result.correct ? 'correct' : 'incorrect',
+    answer: null,
+    comparisonMidi: null,
+    cents: null,
+    startMidi: null,
+    cold: opts.cold ?? null,
+    exact: null,
+    policy: null,
+    targetBpm: target.bpm,
+    answerBpm: oneDecimal(result.bpm),
+    tempoErrorPct: oneDecimal(result.errorPct),
+    targetTerm: target.term,
     responseMs: Math.max(0, Math.round(opts.responseMs)),
   };
 }
@@ -165,7 +214,9 @@ function tally(entries: readonly HistoryEntry[]): Tally {
 export function summarize(entries: readonly HistoryEntry[]): HistorySummary {
   // Chroma answers say "same" or "different", not which note it was, and tuning is a different
   // skill from naming, so neither counts towards a note.
-  const byNote = entries.filter((e) => e.exercise !== 'identify-chroma' && e.exercise !== 'anchor-tune');
+  const byNote = entries.filter(
+    (e) => e.exercise !== 'identify-chroma' && e.exercise !== 'anchor-tune' && !isTempoExercise(e.exercise),
+  );
   const byPitchClass = {} as Record<PitchClass, Tally>;
   for (const pc of ALL_PITCH_CLASSES) byPitchClass[pc] = tally(byNote.filter((e) => e.targetPitchClass === pc));
   return {
@@ -176,6 +227,9 @@ export function summarize(entries: readonly HistoryEntry[]): HistorySummary {
       'identify-chroma': tally(entries.filter((e) => e.exercise === 'identify-chroma')),
       'anchor-tune': tally(entries.filter((e) => e.exercise === 'anchor-tune')),
       'sing-test': tally(entries.filter((e) => e.exercise === 'sing-test')),
+      'identify-tempo': tally(entries.filter((e) => e.exercise === 'identify-tempo')),
+      'tune-tempo': tally(entries.filter((e) => e.exercise === 'tune-tempo')),
+      'test-tap': tally(entries.filter((e) => e.exercise === 'test-tap')),
     },
     byPitchClass,
   };
@@ -201,6 +255,25 @@ export function tuneStats(entries: readonly HistoryEntry[]): { all: TuneStats; c
   return { all: tuneStatsOf(tune), cold: tuneStatsOf(tune.filter((e) => e.cold === true)) };
 }
 
+export interface TempoStats {
+  rounds: number;
+  /** Mean absolute error in %. */
+  meanMiss: number | null;
+  /** Mean signed error in %: positive means you tend to rush, negative to drag. */
+  bias: number | null;
+}
+
+/** Tempo accuracy per tempo exercise (rounds with a measured error). */
+export function tempoStats(entries: readonly HistoryEntry[]): Record<TempoExercise, TempoStats> {
+  const mean = (xs: number[]) => (xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const out = {} as Record<TempoExercise, TempoStats>;
+  for (const exercise of TEMPO_EXERCISES) {
+    const errors = entries.flatMap((e) => (e.exercise === exercise && e.tempoErrorPct !== null ? [e.tempoErrorPct] : []));
+    out[exercise] = { rounds: errors.length, meanMiss: mean(errors.map(Math.abs)), bias: mean(errors) };
+  }
+  return out;
+}
+
 /** Validate stored history, dropping malformed entries. */
 export function sanitizeHistory(input: unknown): HistoryEntry[] {
   if (!Array.isArray(input)) return [];
@@ -212,17 +285,22 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
       typeof e.date !== 'string' ||
       !HISTORY_EXERCISES.includes(e.exercise as HistoryExercise) ||
       (e.outcome !== 'correct' && e.outcome !== 'incorrect' && e.outcome !== 'no-detection') ||
-      typeof e.targetMidi !== 'number' ||
       typeof e.responseMs !== 'number'
     ) {
       continue;
     }
+    const exercise = e.exercise as HistoryExercise;
+    const tempo = isTempoExercise(exercise);
+    // Pitch entries need their target note; tempo entries their target tempo.
+    if (tempo ? typeof e.targetBpm !== 'number' : typeof e.targetMidi !== 'number') continue;
+    const targetMidi = tempo ? null : (e.targetMidi as number);
+    const num = (v: unknown) => (typeof v === 'number' ? v : null);
     out.push({
       date: e.date,
-      exercise: e.exercise as HistoryExercise,
+      exercise,
       mixed: e.mixed === true,
-      targetMidi: e.targetMidi,
-      targetPitchClass: toPitchClass(e.targetMidi),
+      targetMidi,
+      targetPitchClass: targetMidi === null ? null : toPitchClass(targetMidi),
       outcome: e.outcome,
       answer: typeof e.answer === 'number' ? e.answer : null,
       comparisonMidi: typeof e.comparisonMidi === 'number' ? e.comparisonMidi : null,
@@ -231,6 +309,10 @@ export function sanitizeHistory(input: unknown): HistoryEntry[] {
       cold: typeof e.cold === 'boolean' ? e.cold : null,
       exact: typeof e.exact === 'boolean' ? e.exact : null,
       policy: e.policy === 'exact' || e.policy === 'pitch-class' ? e.policy : null,
+      targetBpm: tempo ? num(e.targetBpm) : null,
+      answerBpm: tempo ? num(e.answerBpm) : null,
+      tempoErrorPct: tempo ? num(e.tempoErrorPct) : null,
+      targetTerm: tempo && typeof e.targetTerm === 'string' ? e.targetTerm : null,
       responseMs: e.responseMs,
     });
   }

@@ -18,6 +18,9 @@
   --anchor: #2b5a8c;
   --anchor-text: #ffffff;
   --anchor-soft: #dde7f2;
+  --tempo: #9b2f6a;
+  --tempo-text: #ffffff;
+  --tempo-soft: #f5e1ec;
   --good: #1f6b3a;
   --good-soft: #dcefe2;
   --bad: #a3322b;
@@ -103,6 +106,9 @@
     --anchor: #93bbe6;
     --anchor-text: #0d1a28;
     --anchor-soft: #1f2c3b;
+    --tempo: #eb9cc8;
+    --tempo-text: #2a0d1d;
+    --tempo-soft: #3a2230;
     --good: #7fd29a;
     --good-soft: #1d3324;
     --bad: #f0928a;

@@ -74,3 +74,36 @@ export async function verifyMetronome(page, url) {
   assert.equal(await clicks(), left, 'The metronome stops when you leave Reference');
   console.log('  metronome: marks and terms, tap tempo, steady clicks, tempo changes and stop on leaving passed');
 }
+
+export async function verifyTap(page, url) {
+  await page.goto(`${url}#/settings`);
+  await page.locator('label:has(input[name="tempo-target-style"][value="number"])').click();
+  await page.goto(`${url}#/test/tap`);
+  await expect(page.getByRole('heading', { name: 'Test', exact: true })).toBeVisible();
+  const clicks = await countClicks(page);
+  const bpm = Number((await page.locator('.tap .target .value').innerText()).replace(/\D/g, ''));
+  assert(bpm >= 60 && bpm <= 160, `Target ${bpm} is in the default range`);
+  const before = await clicks();
+  // Tap with Space at the target tempo, timed in the page so automation latency doesn't skew it.
+  await page.locator('.pad').focus();
+  await page.evaluate(async (interval) => {
+    const pad = document.querySelector('.pad');
+    for (let i = 0; i < 8; i++) {
+      pad.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, interval));
+    }
+  }, 60000 / bpm);
+  assert.equal(await clicks(), before, 'Taps make no sound');
+  const verdict = page.locator('.tap .verdict');
+  await expect(verdict).toBeVisible();
+  await expect(verdict.locator('.title')).toHaveText('On tempo');
+  await page.getByRole('button', { name: 'Hear it' }).click();
+  await expect.poll(clicks, { timeout: 8000 }).toBe(before + 8);
+  await page.getByRole('button', { name: /Next tempo/ }).click();
+  await expect(page.locator('.pad')).toBeVisible();
+  await page.goto(`${url}#/history`);
+  await expect(page.locator('.recent li').filter({ has: page.locator('strong', { hasText: /^Test tap$/ }) })).toHaveCount(1);
+  await page.goto(`${url}#/settings`);
+  await page.locator('label:has(input[name="tempo-target-style"][value="mark"])').click();
+  console.log('  tap: silent taps scored against the target, hear it, next and history passed');
+}

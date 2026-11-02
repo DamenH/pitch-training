@@ -184,6 +184,11 @@ the Reference tab stops the clicks.
 
 ## Phase 3: Test → Tap
 
+**Shipped 2026-11-02**, together with the shared history changes, tempo scramble and Settings →
+Tempo. History already knows all three tempo exercises. Term targets score by band membership
+(the band as continuous tempos, matching `termForBpm`'s rounding), and number targets get a 1e-9
+slack, so 105 against 100 counts within ±5%. Tempo modes have their own colour token (`--tempo`).
+
 **Behaviour**
 - The target shows as one of three **target styles** (Settings → Tempo, default *Mark*):
   - **Number**: "96 BPM"

@@ -1,4 +1,5 @@
 import { ALL_PITCH_CLASSES, NATURAL_PITCH_CLASSES, toPitchClass, type PitchClass, type Spelling } from './music';
+import { BPM_MAX, BPM_MIN } from './tempo';
 
 export type ScoringPolicy = 'pitch-class' | 'exact';
 export type ReplayPolicy = 'unlimited' | 'single';
@@ -19,6 +20,8 @@ export type ReplayOctave = 'same' | 'random' | 'sweep';
 export type ChromaContrast = 'far' | 'semitone' | 'fifth' | 'mixed';
 /** Identify chroma: random notes between the pair (and before it on a replay), so the first can't be held in memory. */
 export type ChromaMasker = 'off' | 'short' | 'long';
+/** Tempo exercises: how a target tempo is written (a term counts anywhere in its band). */
+export type TempoTargetStyle = 'number' | 'mark' | 'term';
 /** Reference keyboard: how many octaves to show side by side on wide screens. */
 export type ReferenceOctaves = 1 | 2 | 3;
 
@@ -59,6 +62,12 @@ export interface Settings {
   tuneMasker: boolean;
   /** Anchor tune: ± cents that count as finding the note. */
   tuneToleranceCents: number;
+  /** Tempo exercises: generated targets lie in this range (BPM, inclusive, ≥ TEMPO_MIN_SPAN wide). */
+  tempoMin: number;
+  tempoMax: number;
+  /** Tempo exercises: ± % of the target that counts as correct. */
+  tempoTolerancePct: number;
+  tempoTargetStyle: TempoTargetStyle;
 }
 
 export const OCTAVE_MIN = 1;
@@ -75,6 +84,9 @@ export const TUNE_TOLERANCE_MIN = 10;
 export const TUNE_TOLERANCE_MAX = 100;
 export const ANCHOR_OCTAVE_MIN = 2;
 export const ANCHOR_OCTAVE_MAX = 6;
+export const TEMPO_MIN_SPAN = 20;
+export const TEMPO_TOLERANCE_MIN = 1;
+export const TEMPO_TOLERANCE_MAX = 20;
 
 export interface VocalPreset {
   id: string;
@@ -120,6 +132,10 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   tuneAutoStrike: false,
   tuneMasker: true,
   tuneToleranceCents: 50,
+  tempoMin: 60,
+  tempoMax: 160,
+  tempoTolerancePct: 5,
+  tempoTargetStyle: 'mark',
 });
 
 export function defaultSettings(): Settings {
@@ -170,6 +186,7 @@ export function sanitizeSettings(input: unknown): Settings {
       : legacyScramble !== null &&
         ['identify', 'sing-practice', 'sing-test'].some((kind) => legacyScramble[kind] === true);
   const { low, high } = normalizeVocalRange(num(raw.vocalLow, d.vocalLow), num(raw.vocalHigh, d.vocalHigh));
+  const tempo = normalizeTempoRange(num(raw.tempoMin, d.tempoMin), num(raw.tempoMax, d.tempoMax));
 
   return {
     enabledPitchClasses: pcs,
@@ -201,7 +218,25 @@ export function sanitizeSettings(input: unknown): Settings {
     tuneToleranceCents: Math.round(
       clamp(num(raw.tuneToleranceCents, d.tuneToleranceCents), TUNE_TOLERANCE_MIN, TUNE_TOLERANCE_MAX),
     ),
+    tempoMin: tempo.min,
+    tempoMax: tempo.max,
+    tempoTolerancePct: Math.round(
+      clamp(num(raw.tempoTolerancePct, d.tempoTolerancePct), TEMPO_TOLERANCE_MIN, TEMPO_TOLERANCE_MAX),
+    ),
+    tempoTargetStyle: oneOf(raw.tempoTargetStyle, ['number', 'mark', 'term'] as const, d.tempoTargetStyle),
   };
+}
+
+/** Clamp a tempo range into bounds and widen it to at least TEMPO_MIN_SPAN. */
+export function normalizeTempoRange(minIn: number, maxIn: number): { min: number; max: number } {
+  let min = Math.round(clamp(minIn, BPM_MIN, BPM_MAX));
+  let max = Math.round(clamp(maxIn, BPM_MIN, BPM_MAX));
+  if (min > max) [min, max] = [max, min];
+  if (max - min < TEMPO_MIN_SPAN) {
+    max = Math.min(BPM_MAX, min + TEMPO_MIN_SPAN);
+    min = Math.min(min, max - TEMPO_MIN_SPAN);
+  }
+  return { min, max };
 }
 
 /**
